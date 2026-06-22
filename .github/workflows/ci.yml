@@ -1,0 +1,50 @@
+# 权威检查员(CLAUDE.md §10.5):每次推送/PR 全量运行,红了不许合并。
+# 全部 mock / 离线:不花钱、不联网调用任何付费 API。
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read  # 最小权限 GITHUB_TOKEN(CLAUDE.md §5)
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装依赖
+        run: python -m pip install -e ".[dev]"
+
+      - name: 格式/质量检查员(ruff)
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: 类型检查员(mypy,零错误)
+        run: mypy
+
+      - name: 层级检查员(import-linter)
+        run: lint-imports
+
+      - name: 测试报警器(pytest + 黄金样本)
+        run: pytest -q
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 密钥检查员(gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

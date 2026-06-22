@@ -1,0 +1,104 @@
+# 固定基准轨题库(计划书第 7 章配方):24 题 = 发现 8 + 比较 6 + 本地/场景 6 + 品牌防御 4。
+# 反偏置规则:发现/比较题不点名品牌;品牌防御题故意点名(测 AI 如何描述它)。
+# 改动本文件 = prompt_version bump(新基线);运行参数也在冻结范围内。
+
+version: "demo-2026.06-v3"   # v3:契约新增 sequential/min_runs 字段(默认关,demo 仍固定 N=3)
+prompt_version: "demo-questions-v1"
+
+tier: "standard"
+locale: "en-US"
+region: "US"
+temperature: 0.0
+n_runs: 3                  # demo 固定 3 轮(sequential 默认关);序贯模式下 n_runs 作为上限
+max_uses: 3
+budget_cap_usd: 13.0          # 诚实估算上界 ~$12.5(真实 ~$7.3);运行中按真实花费硬封顶
+strata: ["region", "locale", "tier"]
+
+verify_thresholds:
+  citation_validity_yellow: 0.85
+  citation_validity_red: 0.70
+  ambiguous_yellow: 0.25
+  ambiguous_red: 0.40
+  failure_yellow: 0.05
+  failure_red: 0.15
+
+questions:
+  # ---- 发现 discovery(8 题,不点名品牌) ----
+  - id: "d01"
+    intent: "discovery"
+    text: "What are the best backpacking backpacks for multi-day hikes?"
+  - id: "d02"
+    intent: "discovery"
+    text: "Which hiking backpack brands are most recommended by experienced backpackers?"
+  - id: "d03"
+    intent: "discovery"
+    text: "What backpack should I buy for my first thru-hike?"
+  - id: "d04"
+    intent: "discovery"
+    text: "What are the most durable backpacking packs on the market right now?"
+  - id: "d05"
+    intent: "discovery"
+    text: "Which ultralight backpacks do long-distance hikers actually use?"
+  - id: "d06"
+    intent: "discovery"
+    text: "What is a good 60 to 70 liter backpack for week-long trips?"
+  - id: "d07"
+    intent: "discovery"
+    text: "What backpack brands offer the best warranty and repair service?"
+  - id: "d08"
+    intent: "discovery"
+    text: "What are the best value backpacking packs under 300 dollars?"
+
+  # ---- 比较 comparison(6 题,不点名品牌) ----
+  - id: "c01"
+    intent: "comparison"
+    text: "How do the top backpacking pack brands compare on comfort for heavy loads?"
+  - id: "c02"
+    intent: "comparison"
+    text: "Which backpack brands have the best suspension systems, and how do they differ?"
+  - id: "c03"
+    intent: "comparison"
+    text: "Comparing popular hiking backpacks, which ones fit smaller torsos best?"
+  - id: "c04"
+    intent: "comparison"
+    text: "Which backpacking pack brands are lighter without sacrificing durability?"
+  - id: "c05"
+    intent: "comparison"
+    text: "How do mainstream backpack brands compare to cottage ultralight brands?"
+  - id: "c06"
+    intent: "comparison"
+    text: "Which hiking pack brands offer the best women's specific fit options?"
+
+  # ---- 本地/场景 local(6 题,不点名品牌) ----
+  - id: "l01"
+    intent: "local"
+    text: "What backpack should I take for a 5-day trek on the John Muir Trail?"
+  - id: "l02"
+    intent: "local"
+    text: "Best backpack for hut-to-hut hiking in the Alps?"
+  - id: "l03"
+    intent: "local"
+    text: "What pack do people recommend for desert backpacking with extra water capacity?"
+  - id: "l04"
+    intent: "local"
+    text: "Which backpack works well for winter backpacking with snow gear?"
+  - id: "l05"
+    intent: "local"
+    text: "What backpack is best for travel plus occasional weekend hikes?"
+  - id: "l06"
+    intent: "local"
+    text: "Recommended backpack for scrambling and off-trail alpine routes?"
+
+  # ---- 品牌防御 brand_defense(4 题,故意点名,测 AI 如何描述) ----
+  - id: "b01"
+    intent: "brand_defense"
+    text: "Is Osprey a good backpack brand? What are its strengths and weaknesses?"
+  - id: "b02"
+    intent: "brand_defense"
+    text: "How does Gregory compare to other backpack brands in terms of comfort?"
+  - id: "b03"
+    intent: "brand_defense"
+    text: "What do hikers think about Deuter backpacks?"
+  - id: "b04"
+    intent: "brand_defense"
+    text: "Are Granite Gear packs worth it for ultralight backpacking?"

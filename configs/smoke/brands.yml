@@ -1,0 +1,52 @@
+# 中立 demo 品牌集(计划书第 4 章):5 个真实公开的徒步/背包品牌,无指定焦点品牌。
+# 保守计数:name + aliases 计分;ambiguous_aliases 命中只记录不计分(CLAUDE.md §7)。
+# 改动本文件 = competitor_set_version bump(新基线)。
+
+competitor_set_version: "demo-brands-v1"
+focal_domain: null
+competitors_on: false
+
+peers:
+  - name: "Osprey"
+    aliases:
+      - "Osprey Packs"
+    ambiguous_aliases: []          # 注意:鱼鹰(鸟)同名,但徒步语境下视为清晰名,人工维护
+    domains:
+      - "osprey.com"
+      - "ospreyeurope.com"
+    is_focal: false
+
+  - name: "Gregory"
+    aliases:
+      - "Gregory Packs"
+      - "Gregory Mountain Products"
+    ambiguous_aliases: []          # Gregory 也是人名;demo 语境视为清晰,真实项目需人工评审
+    domains:
+      - "gregorypacks.com"
+    is_focal: false
+
+  - name: "Deuter"
+    aliases: []
+    ambiguous_aliases: []
+    domains:
+      - "deuter.com"
+    is_focal: false
+
+  - name: "REI Co-op"
+    aliases:
+      - "REI Coop"
+    ambiguous_aliases:
+      - "REI"                      # 单独 REI 可能指零售商语境而非自有品牌产品线 → 搁置
+      - "Co-op"
+    domains:
+      - "rei.com"
+    is_focal: false
+
+  - name: "Granite Gear"
+    aliases: []
+    ambiguous_aliases:
+      - "GG"                       # 论坛常用缩写,歧义 → 搁置
+      - "Granite"
+    domains:
+      - "granitegear.com"
+    is_focal: false

@@ -1,0 +1,27 @@
+# 最小验证配置(smoke test):1 题 × 1 轮 = 1 次真实调用,只为验证真实链路通不通。
+# 不是测量基线——单题单轮没有统计意义,prompt_version 单列以免污染 demo 趋势。
+
+version: "smoke-2026.06-v1"
+prompt_version: "smoke-questions-v1"
+
+tier: "standard"
+locale: "en-US"
+region: "US"
+temperature: 0.0
+n_runs: 1                  # 单轮:smoke 只验证链路,不做重复采样
+max_uses: 3
+budget_cap_usd: 1.0
+strata: ["region", "locale", "tier"]
+
+verify_thresholds:
+  citation_validity_yellow: 0.85
+  citation_validity_red: 0.70
+  ambiguous_yellow: 0.25
+  ambiguous_red: 0.40
+  failure_yellow: 0.05
+  failure_red: 0.15
+
+questions:
+  - id: "d01"
+    intent: "discovery"
+    text: "What are the best backpacking backpacks for multi-day hikes?"

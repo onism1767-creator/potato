@@ -1,0 +1,107 @@
+# aivis —— Claude API web-search 可见度(代理测量)
+# 依赖与所有检查员(ruff / mypy / import-linter / pytest)的配置都集中在本文件(CLAUDE.md §8)。
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aivis"
+version = "0.1.0"
+description = "Claude API web-search 可见度(代理测量)—— 可复现的提及/引用测量框架"
+requires-python = ">=3.12"
+# 🟥 CLAUDE.md §3:不经人确认禁止新增第三方依赖。
+# 当前白名单:pydantic(§2 契约要求)、PyYAML(§2 questions.yml/brands.yml 要求)、
+# anthropic(第二步接真引擎时经人确认加入;只许 providers 层 import,由 import-linter 保证)。
+dependencies = [
+    "pydantic>=2.7",
+    "PyYAML>=6.0",
+    "anthropic>=0.60",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff==0.15.16",  # 钉死:与 .pre-commit-config ruff rev 一致,避免格式门禁跨版本漂移
+    "mypy>=1.10",
+    "import-linter>=2.0",
+    "types-PyYAML",
+    "pre-commit>=3.7",
+    "build>=1.0",  # 发布构建工具:`python -m build` 产出 wheel/sdist(非运行时依赖)
+]
+
+[project.scripts]
+aivis = "aivis.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+aivis = ["gui/static/*.html"]  # 本地向导前端随包分发
+
+# ---------- 格式/质量检查员(CLAUDE.md §10.5 第 4 条) ----------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+# ---------- 类型检查员(CLAUDE.md §10.5 第 3 条) ----------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+files = ["src/aivis", "tests"]
+
+# ---------- 测试报警器(CLAUDE.md §10.5 第 5 条) ----------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# ---------- 层级检查员(CLAUDE.md §10.5 第 1 条) ----------
+[tool.importlinter]
+root_packages = ["aivis"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "contracts 是载重墙,不依赖任何上层"
+type = "forbidden"
+source_modules = ["aivis.contracts"]
+forbidden_modules = [
+    "aivis.pipeline",
+    "aivis.providers",
+    "aivis.storage",
+    "aivis.stats",
+    "aivis.cli",
+    "aivis.configio",
+]
+
+[[tool.importlinter.contracts]]
+name = "纯层(extract/score/stats)禁止网络/SDK/存储/适配器"
+type = "forbidden"
+source_modules = [
+    "aivis.pipeline.extract",
+    "aivis.pipeline.score",
+    "aivis.stats",
+    "aivis.templater",
+    "aivis.matching",
+]
+forbidden_modules = [
+    "requests",
+    "httpx",
+    "aiohttp",
+    "urllib3",
+    "anthropic",
+    "openai",
+    "aivis.storage",
+    "aivis.providers",
+    "aivis.cli",
+]
+
+[[tool.importlinter.contracts]]
+name = "storage 不反向依赖流水线/适配器/CLI"
+type = "forbidden"
+source_modules = ["aivis.storage"]
+forbidden_modules = ["aivis.pipeline", "aivis.providers", "aivis.cli"]

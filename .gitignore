@@ -1,0 +1,35 @@
+# 密钥与环境(🟥 CLAUDE.md §5:密钥绝不入库)
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# 本地测量数据(raw/evidence/analysis 三层都不入库)
+data/
+# smoke 验证的真实 API 返回,throwaway,不入库
+data_smoke*/
+# 真实运行的本地数据(.real_demo / .real_smoke 等),不入库
+.real_*/
+# 一次性压力测试脚本,跑完即删,不入库
+.stress*.py
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# 工具缓存
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+
+# 内部计划书 / 个人配置 —— 仅本地保留,不公开(只发布工具本体)
+project book/
+project plan v3.1.md
+.claude/

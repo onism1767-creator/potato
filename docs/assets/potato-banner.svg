@@ -1,0 +1,42 @@
+<svg width="100%" viewBox="0 0 1200 360" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">
+  <title>Potato — Easy AI visibility check</title>
+  <desc>Project banner: a potato mascot with a green sprout beside the wordmark Potato, the tagline Easy AI visibility check, and feature pills.</desc>
+  <defs>
+    <linearGradient id="potatoGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E6C699"/>
+      <stop offset="1" stop-color="#BC8C58"/>
+    </linearGradient>
+    <linearGradient id="leafGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#54A012"/>
+      <stop offset="1" stop-color="#8FD744"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8FD744"/>
+      <stop offset="1" stop-color="#54A012"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="10" y="10" width="1180" height="340" rx="28" fill="#FFFFFF" stroke="#E4F2D2" stroke-width="2"/>
+
+  <ellipse cx="200" cy="296" rx="98" ry="16" fill="#000000" opacity="0.06"/>
+  <path d="M120 165 C126 138 168 124 200 132 C230 139 280 138 300 175 C314 205 305 244 272 264 C242 282 188 278 152 270 C112 261 86 238 92 200 C96 176 100 168 120 165 Z"
+        fill="url(#potatoGrad)" stroke="#A9784A" stroke-width="3"/>
+  <ellipse cx="165" cy="178" rx="8" ry="4.5" fill="#A9784A" opacity="0.4" transform="rotate(-18 165 178)"/>
+  <ellipse cx="235" cy="205" rx="9" ry="5" fill="#A9784A" opacity="0.4" transform="rotate(12 235 205)"/>
+  <ellipse cx="190" cy="240" rx="7" ry="4" fill="#A9784A" opacity="0.4" transform="rotate(-8 190 240)"/>
+  <path d="M205 132 C209 108 226 96 242 94" stroke="#54A012" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M242 94 C235 74 252 58 280 60 C276 84 262 98 242 94 Z" fill="url(#leafGrad)"/>
+  <path d="M210 116 C192 106 178 114 175 128 C196 132 208 126 210 116 Z" fill="url(#leafGrad)"/>
+
+  <text x="400" y="182" font-size="108" font-weight="800" fill="#2C3327" letter-spacing="-2">Potato</text>
+  <rect x="404" y="198" width="252" height="8" rx="4" fill="url(#accentGrad)"/>
+  <text x="404" y="250" font-size="38" font-weight="600" fill="#4E9A06">Easy AI visibility check</text>
+  <text x="404" y="290" font-size="22" font-weight="400" fill="#5C6555">How often does Claude's web search mention &amp; cite a brand?</text>
+
+  <rect x="404" y="310" width="150" height="34" rx="16" fill="#EEF7E2" stroke="#D9E4CF"/>
+  <text x="479" y="333" font-size="18" font-weight="600" fill="#3C6E0F" text-anchor="middle">Deterministic</text>
+  <rect x="566" y="310" width="142" height="34" rx="16" fill="#EEF7E2" stroke="#D9E4CF"/>
+  <text x="637" y="333" font-size="18" font-weight="600" fill="#3C6E0F" text-anchor="middle">Reproducible</text>
+  <rect x="720" y="310" width="208" height="34" rx="16" fill="#EEF7E2" stroke="#D9E4CF"/>
+  <text x="824" y="333" font-size="18" font-weight="600" fill="#3C6E0F" text-anchor="middle">$0 mock-by-default</text>
+</svg>

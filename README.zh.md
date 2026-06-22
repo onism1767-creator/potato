@@ -1,0 +1,117 @@
+<div align="center">
+
+<img src="docs/assets/potato-banner.svg" alt="Potato — Easy AI visibility check" width="760">
+
+# 🥔 Potato · 轻松查 AI 可见度
+
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
+[![tests](https://img.shields.io/badge/tests-254%20passing-brightgreen)](tests/)
+[![runs locally](https://img.shields.io/badge/%E5%85%A8%E7%A8%8B-%E6%9C%AC%E5%9C%B0%E8%BF%90%E8%A1%8C-success)](#4--准备你自己的-api-key)
+[![cost](https://img.shields.io/badge/%E4%BD%9C%E8%80%85%E6%94%B6%E8%B4%B9-%240-success)](#花多少钱)
+
+[English](README.md) · [中文](README.zh.md)
+
+</div>
+
+> 它**不是**爬虫,不是"AI 排名真相检测器",也不是建议生成器。
+> Potato 是一个**可复现的代理测量**——每个结果只代表**此引擎、此配置下**的表现。
+
+---
+
+## 1 · 这是什么(一句话)
+
+Potato 测量你的品牌在 **Claude 联网回答里**的可见度:用一批**固定冻结的问题**反复问 Claude,收集每一次品牌**提及**和来源**引用**,再用**确定性规则计分(非 AI 判官、不靠猜)**,产出一份**可复现、可审计、每个数字都带不确定区间**的报告。
+
+---
+
+## 2 · 怎么用(Windows · 无需装 Python)
+
+1. 从本仓库 **Releases** 页(仓库右侧)下载 `AI-Visibility-Easy-Tool-windows.zip`。
+2. **先把整个文件夹解压出来**——不要在压缩包里直接双击运行。
+3. 双击 **`AI-Visibility-Easy-Tool.bat`**。
+4. 会弹出一个黑色小窗口并**自动打开浏览器**进入向导。*(用的时候别关那个黑窗,关掉就停止了。)*
+5. 按页面上的 **3 步**走:
+   - **品牌** — 填品牌全名、官网域名、品类*(可选:别名、竞品)*。
+   - **起草并审核题目** — 生成问题集(**免费模板 = $0、不用 key**,或用你自己的 key 让 **AI 起草**),逐题可改,跑内置质检。
+   - **运行并打开报告** — 选**免费 mock 预览($0)**或**对 Claude 真实测量**,完成后一键打开 HTML 报告。
+
+<p align="center"><img src="docs/assets/gui-wizard.png" alt="Potato 本地向导 — 第 1 步:品牌与品类" width="660"></p>
+
+便携包内置 **python.org 官方签名的 Python**(不是自制 `.exe`),所以**不会被 Windows「智能应用控制」拦截**,也不需要任何代码签名证书。免费预览不用 key、零成本。
+
+<sub>**开发者 / macOS / Linux:**`pip install -e ".[dev]"`,然后 `aivis gui`(向导)或 `aivis run --yes`($0 mock)。用 `python tools/build_portable.py` 构建便携 zip。*(项目门面名叫 Potato;CLI 命令与 Python 包仍是 `aivis`。)*</sub>
+
+---
+
+## 3 · 能跑出什么,以及它如何保证不编造
+
+<p align="center"><img src="docs/assets/report-multi-brand.png" alt="Potato HTML 报告 — 多品牌仪表盘,含排名与份额" width="780"></p>
+
+<sub>单文件、离线的 HTML 报告(无外链、无脚本)。上图是 $0 mock demo(5 个中立品牌)。在线样张:<a href="examples/single_brand_report.html">examples/single_brand_report.html</a>。</sub>
+
+### 测量哪些指标
+
+- **提及覆盖率** — 回答里用清晰品牌名提到你的频率。
+- **引用有效性** — 被引用的链接里真正可达的比例。
+- **自有 vs 第三方引用** — 引自你自己域名 vs 第三方页面(**分开计**,绝不混算)。
+- **份额(SOV)** — 你在所测品牌全部提及中的占比。
+- **稳定性** — 多轮重复下结果的一致程度。
+- **位置 / 显著度** — 你出现得有多靠前、多突出。
+- **在场矩阵** — 每道题达到的最强证据档:*提及 → 被引 → 已核验*。
+- **证据链** — 每个被引 URL:自有还是第三方、是否可达、页面是否真提到品牌、用哪种核验方式。
+- 带 **Wilson 95% 置信区间**的**排名**,以及一盏**健康灯**。
+
+### 它如何拒绝编造事实(技术核心)
+
+- **确定性计分、无 AI 判官。** 每个计入的数字都来自固定规则,不是模型的"看法"。AI 只用来*起草*题目(你审核拍板后冻结)和*叙述*报告——**绝不参与决定指标**。
+- **保守计数。** 只有清晰、无歧义的品牌名才计分;缩写、歧义名只**记录不计分**——工具绝不替你"往上凑"。
+- **三档证据 `提及 → 被引 → 已核验`,只有「已核验」进核心分。**「已核验」= Potato 真的抓取了被引页面,确认它可达**且页面里确实提到该品牌**。
+- **独立核验引用。** Potato 会**自己重新抓取** Claude 引用的第三方页面去查(死链、张冠李戴)——**不轻信** Claude 的引用。
+- **无尘室探测。** 每次提问都是全新调用、无历史、无个性化;区域、语言、温度全部钉死——同一道题、同一套条件,次次一致。
+- **诚实的不确定性。** 每个比例都带 Wilson 95% 区间;当两个品牌区间重叠时,工具直接说**"无法区分"**,而不是硬编一个假精确的排名。
+- **不诱导 AI。** 24 道冻结题(8 发现 / 6 比较 / 6 场景 / 4 防御);**前 20 道从不点名任何品牌**,而且你自己的品牌是**盲起草**的——AI 根本不知道哪个是你。
+- **钉死了"真能返回引用"的搜索工具版本。** 某个较新的 web-search 工具版本会悄悄吞掉内联引用——我们实测抓到(**0 vs 12** 条引用),于是钉死了会保留引用的那个版本。
+- **防注入。** 抓回的网页和 AI 回答一律当作**不可信数据**——绝不作为指令回喂给模型;HTML 做消毒。
+
+### 有地域性的品类 → 统一取全国基线
+
+有些品类的答案随地区不同而不同。Potato **钉死单一区域和语言**(如 US / en-US)并全程无尘室探测,所以一次运行给的是**一个一致的全国级视图**——不是不同城市的混合,也不是你的个性化结果。不同区域作为**独立分层(stratum)**测量,**绝不平均成一个会误导人的数字**。
+
+### 目前只接了 Claude,但它是模块化的
+
+现在 Potato 只接 **Claude(开启联网搜索)**,所以你看到的是**你在 Claude 这一个 AI 上的可见度**——不是"泛指 AI"。但引擎**从设计上就与具体模型无关**:每个模型都藏在同一套适配器接口后面,流水线里没有任何针对某模型的分支。以后可以接入别的 AI——或者**你自己写一个适配器**——**都不用重写引擎**。
+
+---
+
+## 4 · 准备你自己的 API key
+
+### key 用来干嘛
+
+- **免费预览(mock)不用 key、零成本。**
+- 只有两个真正会调用 Claude 的步骤才需要 key:**AI 起草题目**(可选)和**真实测量**。
+- 你用**自己的 Anthropic API key**,**由 Anthropic 直接向你计费**。
+
+### 花多少钱
+
+- **作者不收你一分钱——永远不收。Potato 是开源的(MIT)。**
+- 一次完整的真实检测**按你设的预算硬封顶**——**economy(Haiku)档通常 $5 左右或更低**,更高质量档(Sonnet / Opus)更贵。Potato 开跑前先估价,**逼近预算就停、绝不超支**。这笔钱是付给 **Anthropic** 的 Claude 使用费,**不经作者**。
+
+### 安全性(可自行核验,不是口头保证)
+
+- **只在你自己电脑上运行**(`127.0.0.1`)。**没有任何云端服务器,不上传任何数据。**
+- 你的 key **只存在内存里**,经环境变量传给本地子进程——**绝不写入硬盘、绝不进日志、绝不出现在命令行。**
+- 只发往 **`api.anthropic.com`**(你自己的账号)——**绝不发往任何作者服务器,零遥测。**
+- 开源可审计;报告里的**「网络去向」**面板会显示本次到底连了哪里,以上每条你都能自己验证。
+
+---
+
+### 给开发者 / 进阶用法
+
+- **从 CLI / Claude Skill 测你自己的品牌**(SETUP 模式):`aivis init` 生成焦点配置骨架 → `aivis validate` 质检 → `aivis estimate` 估价 → `aivis run` 运行。详见 [SKILL.md](SKILL.md)。
+- **项目导读:**[SKILL.md](SKILL.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CLAUDE.md](CLAUDE.md)(行为红线)· `src/aivis/contracts/`(数据契约)· `configs/demo/`(中立 5 品牌 demo)。
+- **质量基线:**契约冻结、三层存储(raw 只追加)、确定性纯函数计分、黄金测试、CI 检查员(ruff / mypy / import-linter / gitleaks / pytest)——**254 测试全绿。**
+
+## License
+
+[MIT](LICENSE)。

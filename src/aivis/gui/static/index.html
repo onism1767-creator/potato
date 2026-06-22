@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="aivis-token" content="__AIVIS_TOKEN__"/>
+<title>AI Visibility Easy Tool</title>
+<style>
+  /* ── 白底 + 绿色渐变仪表盘主题(2026-06-21 换肤;结构/文字不变,仅 CSS)──
+     绿渐变 #8FD744→#54A012 / 强调 #4E9A06 / 卡片 #F3F6F1 / 浅绿 #EEF6E4
+     语义色保留:错误红 / 警告琥珀 */
+  *{box-sizing:border-box;}
+  body{margin:0;line-height:1.6;color:#2C3327;
+    font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,
+    "PingFang SC","Microsoft YaHei",sans-serif;
+    background:#FFFFFF;
+    background-image:
+      radial-gradient(820px 480px at 92% -8%, rgba(141,213,72,.22), transparent 60%),
+      radial-gradient(680px 520px at -6% 112%, rgba(110,195,55,.16), transparent 55%);
+    background-attachment:fixed;}
+  .wrap{max-width:860px;margin:24px auto;padding:0 16px;}
+  .titlebar{background:linear-gradient(135deg,#8FD744 0%,#54A012 100%);color:#fff;
+    border-radius:22px;padding:18px 26px;font-size:20px;font-weight:600;
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    box-shadow:0 12px 28px rgba(84,160,18,.22);}
+  .titlebar small{display:block;font-size:12.5px;font-weight:400;opacity:.95;margin-top:2px;}
+  .langbtn{background:rgba(255,255,255,.22);color:#fff;border:1px solid rgba(255,255,255,.6);
+    border-radius:20px;padding:5px 14px;font-size:13px;font-weight:500;cursor:pointer;
+    margin:0;flex-shrink:0;white-space:nowrap;transition:background .15s;}
+  .langbtn:hover{background:rgba(255,255,255,.34);}
+  .steps{display:flex;gap:8px;margin:16px 0;}
+  .steps div{flex:1;text-align:center;font-size:12px;color:#5E7A40;padding:8px;
+    border-radius:20px;background:#EFF3EA;}
+  .steps div.on{background:linear-gradient(135deg,#8FD744,#54A012);color:#fff;font-weight:600;
+    box-shadow:0 6px 16px rgba(84,160,18,.25);}
+  .panel{background:#F4F7F2;border-radius:22px;padding:24px 28px;
+    box-shadow:0 8px 30px rgba(60,110,30,.06);border:1px solid rgba(120,180,60,.10);}
+  .ph{display:inline-block;background:linear-gradient(135deg,#8FD744,#54A012);color:#fff;
+    font-size:14px;font-weight:600;padding:6px 16px;border-radius:20px;margin-bottom:6px;
+    box-shadow:0 6px 14px rgba(84,160,18,.22);}
+  .sub{font-size:13px;color:#7E8B76;}
+  label{display:block;font-size:13px;color:#7E8B76;margin:14px 0 4px;}
+  input[type=text],input[type=password],textarea,select{width:100%;padding:10px 12px;
+    border:1px solid #D9E4CF;border-radius:12px;background:#fff;font:inherit;color:#2C3327;
+    transition:border-color .15s,box-shadow .15s;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:#7CC22E;
+    box-shadow:0 0 0 3px rgba(124,194,46,.18);}
+  textarea{min-height:54px;resize:vertical;}
+  button{background:linear-gradient(135deg,#8FD744,#54A012);color:#fff;border:none;
+    border-radius:22px;padding:11px 22px;cursor:pointer;font:inherit;font-weight:600;
+    margin:16px 8px 0 0;box-shadow:0 8px 18px rgba(84,160,18,.22);
+    transition:filter .15s,transform .05s,box-shadow .15s;}
+  button:hover:not(:disabled){filter:brightness(1.05);box-shadow:0 10px 22px rgba(84,160,18,.3);}
+  button:active:not(:disabled){transform:translateY(1px);}
+  button.ghost{background:#EAF1E2;color:#447014;box-shadow:none;}
+  button.ghost:hover:not(:disabled){filter:none;background:#E0EBD4;box-shadow:none;}
+  /* Check 按钮:未校验=灰;校验通过=绿(给用户"这批题已确认可靠"的明确信号) */
+  button.vcheck{background:#E7E9E6;color:#6B736A;box-shadow:none;}
+  button.vcheck:hover:not(:disabled){background:#DCE0DA;filter:none;box-shadow:none;}
+  button.vcheck.ok{background:linear-gradient(135deg,#8FD744,#54A012);color:#fff;
+    box-shadow:0 8px 18px rgba(84,160,18,.22);}
+  button:disabled{opacity:.45;cursor:default;box-shadow:none;}
+  .nav{display:flex;justify-content:space-between;align-items:center;margin-top:4px;}
+  .note{background:#EEF6E4;border-radius:14px;padding:12px 15px;font-size:13px;
+    color:#4A6B23;margin-top:14px;border:1px solid #DBEBC7;}
+  .note b{color:#3C6E0F;}
+  .bucket{font-size:13px;font-weight:600;color:#4E9A06;margin:16px 0 6px;}
+  .q{display:flex;gap:10px;align-items:flex-start;margin-bottom:7px;}
+  .q .tag{font-size:11px;color:#7E8B76;width:42px;flex-shrink:0;margin-top:9px;}
+  .q input{flex:1;}
+  .q.bad input{border-color:#C0392B;background:#FCEBEB;}
+  .q.warn input{border-color:#B8860B;background:#FBF3E0;}
+  /* 分段题(免费档锁定芯片):文字段可编辑、品类/品牌为只读绿色芯片 */
+  .qseg{flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:3px;
+    border:1px solid #D9E4CF;border-radius:12px;background:#fff;padding:6px 9px;}
+  .qseg input.seg{border:none;border-bottom:1px dashed #BFD2AE;border-radius:0;padding:1px 2px;
+    background:transparent;font:inherit;color:#2C3327;min-width:1ch;}
+  .qseg input.seg:focus{outline:none;border-bottom-color:#54A012;box-shadow:none;}
+  .qseg .chip{background:#E4F2D2;color:#3C6E0F;border-radius:10px;padding:1px 9px;font-size:13px;
+    white-space:nowrap;font-weight:500;}
+  .q.bad .qseg{border-color:#C0392B;background:#FCEBEB;}
+  .q.warn .qseg{border-color:#B8860B;background:#FBF3E0;}
+  .msg{font-size:12.5px;margin-top:12px;white-space:pre-wrap;}
+  .msg.err{color:#C0392B;} .msg.ok{color:#3C7D11;}
+  .row2{display:flex;gap:14px;} .row2>div{flex:1;}
+  .radio{display:flex;gap:16px;margin-top:10px;font-size:13px;flex-wrap:wrap;}
+  .radio label{display:flex;align-items:center;gap:6px;margin:0;color:#2C3327;}
+  input[type=radio],input[type=checkbox]{accent-color:#54A012;}
+  /* 单独的复选框+长说明:勾选框顶部对齐、文字成段不被 flex-wrap 拆下一行 */
+  .check{display:flex;align-items:flex-start;gap:8px;margin:14px 0 0;font-size:13px;
+    color:#2C3327;cursor:pointer;}
+  .check input{flex-shrink:0;margin-top:3px;}
+  .howto{list-style:none;padding:0;margin:14px 0 0;font-size:13px;color:#5C6555;}
+  .howto li{margin:4px 0;}
+  .howto b{color:#4E9A06;font-weight:600;}
+  .trust{background:#F1F8E8;border:1px solid #D8E8C4;border-radius:14px;
+    padding:13px 16px;margin-top:16px;font-size:12.5px;color:#5C6555;}
+  .trust-h{font-weight:600;color:#4E9A06;margin-bottom:6px;}
+  .trust ul{margin:0;padding-left:18px;} .trust li{margin:3px 0;}
+  .trust b{color:#3C6E0F;font-weight:600;}
+  .trust.mini{margin-top:10px;}
+  .cost{font-size:12px;color:#6E8A3E;}
+  /* Step3 顶部重点声明(本地/key/不收钱):比 .trust 更醒目 */
+  .notice{border:1.5px solid #7CC22E;background:#EEF7E2;margin:0 0 16px;
+    box-shadow:0 6px 20px rgba(84,160,18,.10);}
+  .notice .trust-h{font-size:14px;}
+  /* run 档位卡 */
+  .tier{display:block;border:1px solid #D9E4CF;border-radius:14px;background:#fff;
+    padding:11px 14px;margin:8px 0;cursor:pointer;transition:border-color .15s,box-shadow .15s;}
+  .tier:hover{border-color:#A8D673;}
+  .tier.sel{border-color:#7CC22E;background:#F1F8E8;box-shadow:0 6px 16px rgba(84,160,18,.12);}
+  .tier .th{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .tier .tn{font-weight:600;color:#2C3327;}
+  .tier .te{font-weight:600;color:#3C6E0F;white-space:nowrap;}
+  .tier .te.over{color:#C0392B;}
+  .tier .tm{font-size:11px;color:#6E8A3E;}
+  .tier .tb{font-size:12.5px;color:#5C6555;margin-top:3px;}
+  .total{font-size:13px;font-weight:600;color:#3C6E0F;margin-top:10px;}
+  /* 运行进度条:活动文字 + 右侧 ETA + 进度条 + 下方明细 */
+  .prog{margin-top:16px;}
+  .prog-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:7px;}
+  .prog-act{color:#3C6E0F;font-weight:600;font-size:13px;}
+  .prog-eta{color:#7E8B76;font-size:12px;white-space:nowrap;}
+  .prog-bar{height:10px;background:#E6EFDC;border-radius:8px;overflow:hidden;}
+  .prog-fill{height:100%;width:0;border-radius:8px;
+    background:linear-gradient(90deg,#8FD744,#54A012);transition:width .4s ease;}
+  .prog-fill.indet{width:35%;animation:indet 1.3s ease-in-out infinite;}
+  @keyframes indet{0%{margin-left:-35%;}100%{margin-left:100%;}}
+  .prog-sub{font-size:12px;color:#7E8B76;margin-top:6px;}
+  .hide{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="titlebar">
+    <div><div>AI Visibility Easy Tool</div><small data-i18n="subtitle">测量 Claude 联网回答里提及与引用你品牌的频率</small></div>
+    <button id="langbtn" class="langbtn" onclick="toggleLang()">English</button>
+  </div>
+  <div class="steps">
+    <div id="tab1" data-i18n="tab1">1 · 品牌</div>
+    <div id="tab2" data-i18n="tab2">2 · 起草与审核</div>
+    <div id="tab3" data-i18n="tab3">3 · 运行与报告</div>
+  </div>
+
+  <!-- Step 0 · Intro -->
+  <div id="step0" class="panel">
+    <span class="ph" data-i18n="s0_ph">关于本工具</span>
+    <p class="sub" style="font-size:14px;color:#2B2A28;" data-i18n-html="s0_sub">
+      它测量一个品牌在 Claude 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。</p>
+
+    <div class="bucket" data-i18n="s0_how">工作原理</div>
+    <ol class="howto">
+      <li data-i18n-html="s0_how1"><b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 Claude 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。</li>
+      <li data-i18n-html="s0_how2"><b>每道题会问多次</b>,因为 Claude 的回答每次都不一样——单次回答不可靠。它会一直问到冒出的品牌<b>不再变化</b>(稳定)为止,所以飘的题多采样、稳的题更省钱。</li>
+      <li data-i18n-html="s0_how3"><b>用固定规则打分,不用 AI 当裁判。</b>只有清晰的品牌名才计入(保守计数)。证据分三档——<b>已提及 → 被引用 → 已核实</b>——只有<i>已核实</i>(被引用的页面可访问且确实点了该品牌)才计入核心分。</li>
+      <li data-i18n-html="s0_how4"><b>每个数字都带不确定区间。</b>小到不真实的差距会标成“无法区分”——绝不给假的、过度精确的排名。</li>
+    </ol>
+
+    <div class="bucket" data-i18n="s0_report">报告会给出什么</div>
+    <p class="sub" data-i18n="s0_report_b">提及覆盖率、引用有效性、声量份额、逐题出现矩阵、被引来源(你自己的站点 vs 第三方),以及不确定区间——每一项都带点击即读的解释。</p>
+
+    <div class="bucket" data-i18n="s0_three">三步走</div>
+    <ul class="howto">
+      <li data-i18n-html="s0_three1"><b>1 · 品牌</b>——填你的品牌、域名和品类。</li>
+      <li data-i18n-html="s0_three2"><b>2 · 起草</b>——生成问题,审核并编辑。</li>
+      <li data-i18n-html="s0_three3"><b>3 · 运行</b>——测量,然后看报告。</li>
+    </ul>
+    <div class="nav"><span></span><button onclick="go(1)" data-i18n="s0_start">开始 →</button></div>
+  </div>
+
+  <!-- Step 1 · Brand -->
+  <div id="step1" class="panel hide">
+    <span class="ph" data-i18n="s1_ph">第 1 步 · 品牌与品类</span>
+    <label data-i18n="s1_name">品牌全名 *</label>
+    <input type="text" id="focal_name" data-i18n-ph="s1_name_ph" placeholder="例:Acme Corp"/>
+    <label data-i18n="s1_domain">官方域名 *</label>
+    <input type="text" id="focal_domain" data-i18n-ph="s1_domain_ph" placeholder="例:acme.com"/>
+    <label data-i18n="s1_cat">品类 / 行业 *(用于起草题目;请勿包含你的品牌名)</label>
+    <input type="text" id="category" data-i18n-ph="s1_cat_ph" placeholder="例:登山背包"/>
+    <label data-i18n="s1_alias">别名(可选,逗号分隔)</label>
+    <input type="text" id="aliases" data-i18n-ph="s1_alias_ph" placeholder="例:Acme, AcmeCorp"/>
+    <label data-i18n="s1_comp">竞品(可选,每行一个:名称, 域名)</label>
+    <textarea id="competitors" placeholder="Osprey, osprey.com&#10;Gregory, gregorypacks.com"></textarea>
+    <div id="s1msg" class="msg"></div>
+    <div class="nav"><button class="ghost" onclick="go(0)" data-i18n="nav_about">← 关于</button>
+      <button onclick="nextFromStep1()" data-i18n="nav_next">下一步 →</button></div>
+  </div>
+
+  <!-- Step 2 · Draft -->
+  <div id="step2" class="panel hide">
+    <span class="ph" data-i18n="s2_ph">第 2 步 · 起草并定稿问题</span>
+    <div class="radio">
+      <label><input type="radio" name="dtier" value="free" checked onchange="dtierChange()"/>
+        <span data-i18n="s2_free">免费模板($0,无需 key)</span></label>
+      <label><input type="radio" name="dtier" value="ai" onchange="dtierChange()"/>
+        <span data-i18n="s2_ai">AI 盲起草</span> <span class="cost" data-i18n="s2_ai_cost">≈ $0.05–0.30 · 用你的 key</span></label>
+    </div>
+    <div id="aicost" class="trust hide">
+      <div class="trust-h" data-i18n="s2_ai_h">AI 盲起草——是什么、花多少钱</div>
+      <ul>
+        <li data-i18n-html="s2_ai_l1"><b>它做什么:</b>Claude 起草全部 24 题,贴合你的行业——其中中立题<b>不告诉它你的品牌</b>(隔离盲),并建议竞品。免费模板是固定的,其本地/场景题较通用。</li>
+        <li data-i18n-html="s2_ai_l2"><b>本步费用:</b><b id="draftest">≈ $0.05–0.30</b>,计入你自己的 Anthropic 账户(第 3 步的测量运行才是主要花费)。</li>
+        <li data-i18n-html="s2_ai_l3">key <b>只在内存里</b>,只发往 <b>api.anthropic.com</b>(你自己的账户)——<b>绝不写入磁盘或日志,绝不发往我们的服务器,零遥测</b>。开源、可审计。</li>
+      </ul>
+      <label data-i18n="s2_key">API key(仅内存;用于本次起草和第 3 步运行,绝不保存)</label>
+      <input type="password" id="draft_api_key" placeholder="sk-ant-..." oninput="syncKey()"/>
+    </div>
+    <button onclick="doDraft()" data-i18n="s2_gen">生成 24 道问题</button>
+    <button class="vcheck" onclick="doValidate()" id="vbtn" data-i18n="s2_check" disabled>检查(校验)</button>
+    <div class="sub" data-i18n="s2_check_hint" style="margin-top:8px;">“检查(校验)”=开跑前扫一遍这 24 题有没有会让测量有偏的问题:中立题误点了品牌名、配比不对、引导性句式等。<b>红 = 必须改</b>、<b>黄 = 建议改</b>;没问题会显示“全部通过”。可选,但建议起草/编辑后点一下。</div>
+    <div id="qgrid"></div>
+    <div id="vmsg" class="msg"></div>
+    <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="nav_back">← 返回</button>
+      <button onclick="go(3)" id="to3" data-i18n="nav_next" disabled>下一步 →</button></div>
+  </div>
+
+  <!-- Step 3 · Run -->
+  <div id="step3" class="panel hide">
+    <span class="ph" data-i18n="s3_ph">第 3 步 · 运行与报告</span>
+    <div class="trust notice">
+      <div class="trust-h" data-i18n="s3_notice_h">全程在你自己的电脑上运行,不上传任何数据。</div>
+      <ul>
+        <li data-i18n-html="s3_notice1"><b>100% 本地。</b>程序在你机器的 <b>127.0.0.1</b> 上运行——回路里没有我们的任何服务器。它开源(MIT),你能读每一行;报告里的<b>“网络去向”</b>面板会显示这次运行到底连了哪里。</li>
+        <li data-i18n-html="s3_notice2"><b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——只发往 <b>api.anthropic.com</b>(你自己的账户)。</li>
+        <li data-i18n-html="s3_notice3"><b>作者零收益——本工具免费。</b>你花的任何钱都给 <b>Anthropic</b> 用来跑 Claude,付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 Anthropic API key,由 Anthropic 直接向你计费。</li>
+      </ul>
+    </div>
+    <div class="radio">
+      <label><input type="radio" name="prov" value="mock" checked onchange="provChange()"/>
+        <span data-i18n="s3_mock">模拟(免费演示)</span></label>
+      <label><input type="radio" name="prov" value="anthropic" onchange="provChange()"/>
+        <span data-i18n="s3_real">Anthropic(真实 · ~$7 · ~25 分钟)</span></label>
+    </div>
+    <div id="mock_note" class="note" data-i18n-html="s3_mock_note">第一次用?先选 <b>Mock</b>。<b>Mock(免费演示)</b>用内置示例数据把整条流程跑一遍——<b>不需要 API key、$0、不向 Claude 发送任何东西</b>。它是最快看清“最终报告长什么样、测哪些指标”(提及覆盖率、引用有效性、声量份额、逐题在场矩阵……)的方式。直接点下面的 <b>开始测量</b>,跑完点 <b>打开报告</b> 即可。准备好测你自己的品牌时,再切到 <b>Anthropic(真实)</b>——那才会真的去问 Claude、要花钱。</div>
+    <div id="anthropic_box" class="hide">
+      <div class="trust mini" data-i18n-html="s3_key_mini">你的 key <b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不存盘、绝不记日志</b>,只发往 <b>api.anthropic.com</b>(你自己的账户)。</div>
+      <div class="row2">
+        <div><label data-i18n="s3_key">API key(仅内存;发给这次本地运行,绝不保存)</label>
+          <input type="password" id="api_key" placeholder="sk-ant-..."/></div>
+        <div><label data-i18n="s3_budget">预算上限(美元)</label>
+          <input type="text" id="budget" value="13" oninput="loadTiers()"/></div>
+      </div>
+      <label data-i18n="s3_tier">模型档位——在质量与成本间选(估算针对你当前的题目)</label>
+      <div id="tiers"></div>
+      <div class="note" data-i18n="s3_tier_note">档位越高,推理与准确度越好、成本越高;三档的测量方式相同。运行会按你的预算硬封顶——若估算显示红色,会在超支前被拦下。</div>
+      <div id="total" class="total"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="sequential"/>
+      <span data-i18n="s3_seq">自适应采样——回答已稳定时每题少问几次(真实运行省钱;上方估算仍是上界)。</span></label>
+    <button class="ghost" onclick="doEstimate()" data-i18n="s3_est">估算成本(模拟)</button>
+    <button onclick="doRun()" id="runbtn" data-i18n="s3_start">开始测量</button>
+    <div id="emsg" class="msg"></div>
+    <div id="progress" class="prog hide">
+      <div class="prog-top"><span id="prog-act" class="prog-act"></span>
+        <span id="prog-eta" class="prog-eta"></span></div>
+      <div class="prog-bar"><div id="prog-fill" class="prog-fill"></div></div>
+      <div id="prog-sub" class="prog-sub"></div>
+    </div>
+    <div id="runmsg" class="msg"></div>
+    <div class="nav"><button class="ghost" onclick="go(2)" data-i18n="nav_back">← 返回</button><span></span></div>
+  </div>
+</div>
+
+<script>
+const TOKEN = document.querySelector('meta[name=aivis-token]').content;
+let QUESTIONS = [];
+let DRAFT_EST = 0;       // AI 起草这一步的预估(免费档=0),用于合并总额
+let TIER_EST = {};       // 各 run 档位预估 id→$
+const $ = (id) => document.getElementById(id);
+const v = (id) => $(id).value.trim();
+
+// ── i18n:语言字典 + 切换 ────────────────────────────────────────────────
+const I18N = {
+  subtitle:{zh:'测量 Claude 联网回答里提及与引用你品牌的频率', en:'Measure how often Claude mentions & cites your brand'},
+  tab1:{zh:'1 · 品牌', en:'1 · Brand'},
+  tab2:{zh:'2 · 起草与审核', en:'2 · Draft & review'},
+  tab3:{zh:'3 · 运行与报告', en:'3 · Run & report'},
+  s0_ph:{zh:'关于本工具', en:'About this tool'},
+  s0_sub:{zh:'它测量一个品牌在 Claude 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。',
+    en:"It measures how often a brand shows up — <b>mentioned</b> and <b>cited</b> — in Claude's web-search answers, and turns that into a report you can trust and repeat."},
+  s0_how:{zh:'工作原理', en:'How it works'},
+  s0_how1:{zh:'<b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 Claude 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。',
+    en:'<b>24 fixed questions, in a fixed 8 / 6 / 6 / 4 mix</b> — 8 discovery ("what\'s best for…"), 6 comparison ("how do brands compare on…"), 6 local/scenario, and 4 brand-defense. The first 20 <b>never name any brand</b>, so the test can\'t nudge Claude toward you — only the 4 defense questions name your brand on purpose. Keeping the set and the mix fixed is what makes runs <b>comparable and repeatable</b> instead of drifting every time.'},
+  s0_how2:{zh:'<b>每道题会问多次</b>,因为 Claude 的回答每次都不一样——单次回答不可靠。它会一直问到冒出的品牌<b>不再变化</b>(稳定)为止,所以飘的题多采样、稳的题更省钱。',
+    en:"<b>Each question is asked several times</b>, because Claude's answer varies from run to run — a single answer isn't reliable. It keeps asking until the brands that come up <b>stop changing</b> (stable), so shaky questions get more samples and steady ones cost less."},
+  s0_how3:{zh:'<b>用固定规则打分,不用 AI 当裁判。</b>只有清晰的品牌名才计入(保守计数)。证据分三档——<b>已提及 → 被引用 → 已核实</b>——只有<i>已核实</i>(被引用的页面可访问且确实点了该品牌)才计入核心分。',
+    en:'<b>Scored by fixed rules, not an AI judge.</b> Only clear brand names count (conservative). Evidence has three levels — <b>mentioned → cited → verified</b> — and only <i>verified</i> (the cited page is reachable and really names the brand) counts toward the core score.'},
+  s0_how4:{zh:'<b>每个数字都带不确定区间。</b>小到不真实的差距会标成“无法区分”——绝不给假的、过度精确的排名。',
+    en:'<b>Every number comes with an uncertainty range.</b> Gaps too small to be real are shown as "can\'t tell apart" — never a fake, over-precise ranking.'},
+  s0_report:{zh:'报告会给出什么', en:'What the report shows'},
+  s0_report_b:{zh:'提及覆盖率、引用有效性、声量份额、逐题出现矩阵、被引来源(你自己的站点 vs 第三方),以及不确定区间——每一项都带点击即读的解释。',
+    en:'Mention coverage, citation validity, share of voice, a per-question presence matrix, the cited sources (your own site vs third-party), and uncertainty ranges — each with a click-to-read explanation.'},
+  s0_three:{zh:'三步走', en:'Three steps'},
+  s0_three1:{zh:'<b>1 · 品牌</b>——填你的品牌、域名和品类。', en:'<b>1 · Brand</b> — enter your brand, domain and category.'},
+  s0_three2:{zh:'<b>2 · 起草</b>——生成问题,审核并编辑。', en:'<b>2 · Draft</b> — generate the questions, review and edit them.'},
+  s0_three3:{zh:'<b>3 · 运行</b>——测量,然后看报告。', en:'<b>3 · Run</b> — measure, then read the report.'},
+  s0_start:{zh:'开始 →', en:'Get started →'},
+  s1_ph:{zh:'第 1 步 · 品牌与品类', en:'Step 1 · Brand & category'},
+  s1_name:{zh:'品牌全名 *', en:'Brand full name *'},
+  s1_name_ph:{zh:'例:Acme Corp', en:'e.g. Acme Corp'},
+  s1_domain:{zh:'官方域名 *', en:'Official domain *'},
+  s1_domain_ph:{zh:'例:acme.com', en:'e.g. acme.com'},
+  s1_cat:{zh:'品类 / 行业 *(用于起草题目;请勿包含你的品牌名)', en:'Category / industry * (drives drafting; do NOT include your brand name)'},
+  s1_cat_ph:{zh:'例:登山背包', en:'e.g. hiking backpacks'},
+  s1_alias:{zh:'别名(可选,逗号分隔)', en:'Aliases (optional, comma-separated)'},
+  s1_alias_ph:{zh:'例:Acme, AcmeCorp', en:'e.g. Acme, AcmeCorp'},
+  s1_comp:{zh:'竞品(可选,每行一个:名称, 域名)', en:'Competitors (optional, one per line: name, domain)'},
+  nav_about:{zh:'← 关于', en:'← About'},
+  nav_next:{zh:'下一步 →', en:'Next →'},
+  nav_back:{zh:'← 返回', en:'← Back'},
+  s2_ph:{zh:'第 2 步 · 起草并定稿问题', en:'Step 2 · Draft & finalize questions'},
+  s2_free:{zh:'免费模板($0,无需 key)', en:'Free template ($0, no key)'},
+  s2_ai:{zh:'AI 盲起草', en:'AI blind draft'},
+  s2_ai_cost:{zh:'≈ $0.05–0.30 · 用你的 key', en:'≈ $0.05–0.30 · uses your key'},
+  s2_ai_h:{zh:'AI 盲起草——是什么、花多少钱', en:'AI blind draft — what it is & what it costs'},
+  s2_ai_l1:{zh:'<b>它做什么:</b>Claude 起草全部 24 题,贴合你的行业——其中中立题<b>不告诉它你的品牌</b>(隔离盲),并建议竞品。免费模板是固定的,其本地/场景题较通用。',
+    en:'<b>What it does:</b> Claude drafts all 24 questions tailored to your industry — the neutral ones written <b>without being told your brand</b> (isolation-blind) — and suggests competitors. The free template is fixed and its local/scenario questions are generic.'},
+  s2_ai_l2:{zh:'<b>本步费用:</b><b id="draftest">≈ $0.05–0.30</b>,计入你自己的 Anthropic 账户(第 3 步的测量运行才是主要花费)。',
+    en:'<b>Cost (this step):</b> <b id="draftest">≈ $0.05–0.30</b> to your own Anthropic account (the Step 3 measurement run is the real cost).'},
+  s2_ai_l3:{zh:'key <b>只在内存里</b>,只发往 <b>api.anthropic.com</b>(你自己的账户)——<b>绝不写入磁盘或日志,绝不发往我们的服务器,零遥测</b>。开源、可审计。',
+    en:'Key stays <b>in memory only</b>, sent only to <b>api.anthropic.com</b> (your own account) — <b>never written to disk or logs, never to our servers, zero telemetry</b>. Open-source & auditable.'},
+  s2_key:{zh:'API key(仅内存;用于本次起草和第 3 步运行,绝不保存)', en:'API key (memory only; used for this draft & the Step 3 run, never saved)'},
+  s2_gen:{zh:'生成 24 道问题', en:'Generate 24 questions'},
+  s2_check:{zh:'检查(校验)', en:'Check (validate)'},
+  s2_check_hint:{zh:'“检查(校验)”=开跑前扫一遍这 24 题有没有会让测量有偏的问题:中立题误点了品牌名、配比不对、引导性句式等。<b>红 = 必须改</b>、<b>黄 = 建议改</b>;没问题会显示“全部通过”。可选,但建议起草/编辑后点一下。',
+    en:'“Check (validate)” scans the 24 questions for things that would bias the measurement — a neutral question accidentally naming a brand, a wrong mix, leading phrasing, etc. <b>Red = must fix</b>, <b>amber = suggested</b>; if all is well it shows “all passed”. Optional, but recommended after drafting or editing.'},
+  s2_val_clean:{zh:'✓ 全部 24 题通过检查,没有偏置问题。', en:'✓ All 24 questions passed — no bias issues.'},
+  s3_ph:{zh:'第 3 步 · 运行与报告', en:'Step 3 · Run & report'},
+  s3_notice_h:{zh:'全程在你自己的电脑上运行,不上传任何数据。', en:'Everything runs on your own computer. Nothing is uploaded.'},
+  s3_notice1:{zh:'<b>100% 本地。</b>程序在你机器的 <b>127.0.0.1</b> 上运行——回路里没有我们的任何服务器。它开源(MIT),你能读每一行;报告里的<b>“网络去向”</b>面板会显示这次运行到底连了哪里。',
+    en:'<b>100% local.</b> The app runs at <b>127.0.0.1</b> on your machine — there is no server of ours in the loop. It\'s open-source (MIT), so you can read every line, and the report\'s <b>"network destinations"</b> panel shows exactly where the run connected.'},
+  s3_notice2:{zh:'<b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——只发往 <b>api.anthropic.com</b>(你自己的账户)。',
+    en:'<b>Your API key is safe.</b> Held <b>in memory only</b>, passed to the local run through an environment variable — <b>never written to disk, never logged, never put on a command line</b> — and sent only to <b>api.anthropic.com</b> (your own account).'},
+  s3_notice3:{zh:'<b>作者零收益——本工具免费。</b>你花的任何钱都给 <b>Anthropic</b> 用来跑 Claude,付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 Anthropic API key,由 Anthropic 直接向你计费。',
+    en:'<b>The author earns nothing — this tool is free.</b> Any money you spend goes to <b>Anthropic</b> to run Claude; it pays for the AI itself. <b>You are not paying the author.</b> You bring your own Anthropic API key and Anthropic bills you directly.'},
+  s3_mock_note:{zh:'第一次用?先选 <b>Mock</b>。<b>Mock(免费演示)</b>用内置示例数据把整条流程跑一遍——<b>不需要 API key、$0、不向 Claude 发送任何东西</b>。它是最快看清“最终报告长什么样、测哪些指标”(提及覆盖率、引用有效性、声量份额、逐题在场矩阵……)的方式。直接点下面的 <b>开始测量</b>,跑完点 <b>打开报告</b> 即可。准备好测你自己的品牌时,再切到 <b>Anthropic(真实)</b>——那才会真的去问 Claude、要花钱。',
+    en:'New here? Start with <b>Mock</b>. <b>Mock (free demo)</b> runs the whole pipeline on built-in sample data — <b>no API key, $0, nothing is sent to Claude</b>. It\'s the fastest way to see what the final report looks like and which metrics it measures (mention coverage, citation validity, share of voice, the per-question presence matrix, …). Just click <b>Start measurement</b> below, then <b>Open report</b> when it finishes. When you\'re ready to test your own brand, switch to <b>Anthropic (real)</b> — that actually asks Claude and costs money.'},
+  s3_mock:{zh:'模拟(免费演示)', en:'Mock (free demo)'},
+  s3_real:{zh:'Anthropic(真实 · ~$7 · ~25 分钟)', en:'Anthropic (real · ~$7 · ~25 min)'},
+  s3_key_mini:{zh:'你的 key <b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不存盘、绝不记日志</b>,只发往 <b>api.anthropic.com</b>(你自己的账户)。',
+    en:'Your key is held <b>in memory only</b> and handed to the local run through an environment variable — <b>never saved to disk, never logged</b>, and sent only to <b>api.anthropic.com</b> (your own account).'},
+  s3_key:{zh:'API key(仅内存;发给这次本地运行,绝不保存)', en:'API key (memory only; sent to this local run, never saved)'},
+  s3_budget:{zh:'预算上限(美元)', en:'Budget cap (USD)'},
+  s3_tier:{zh:'模型档位——在质量与成本间选(估算针对你当前的题目)', en:'Model tier — pick quality vs cost (estimates are for your current questions)'},
+  s3_tier_note:{zh:'档位越高,推理与准确度越好、成本越高;三档的测量方式相同。运行会按你的预算硬封顶——若估算显示红色,会在超支前被拦下。',
+    en:'Higher tiers mean better reasoning & accuracy at higher cost; all three measure the same way. The run is hard-capped at your budget — if an estimate shows red it will be blocked before overspending.'},
+  s3_seq:{zh:'自适应采样——回答已稳定时每题少问几次(真实运行省钱;上方估算仍是上界)。',
+    en:'Adaptive sampling — ask each question fewer times when answers are already stable (saves money on real runs; estimates above stay the upper bound).'},
+  s3_est:{zh:'估算成本(模拟)', en:'Estimate cost (mock)'},
+  s3_start:{zh:'开始测量', en:'Start measurement'},
+  // 运行进度:活动文字(按阶段)
+  act_starting:{zh:'正在启动…', en:'Starting…'},
+  act_probe:{zh:'正在向 Claude 提问并联网搜索(最耗时的一步)…', en:'Asking Claude & running web search (the longest step)…'},
+  act_extract:{zh:'解析回答、统计品牌提及…', en:'Parsing answers & counting brand mentions…'},
+  act_verify:{zh:'核验被引用的网页…', en:'Verifying the cited web pages…'},
+  act_score:{zh:'计算指标与不确定区间…', en:'Computing metrics & uncertainty ranges…'},
+  act_report:{zh:'生成报告…', en:'Building the report…'},
+  eta_calc:{zh:'预估剩余时间中…', en:'estimating time left…'},
+  eta_finishing:{zh:'即将完成', en:'finishing up'},
+  eta_left:{zh:'约 {t} 剩余', en:'~{t} left'},
+  prog_elapsed:{zh:'已运行 {e}', en:'elapsed {e}'},
+  prog_calls:{zh:' · 已问 {d}/{t} 次', en:' · {d}/{t} calls'},
+  prog_cost:{zh:' · 已花 ${c}', en:' · spent ${c}'},
+  cost_mock:{zh:'(免费 mock 演示,$0,没有真实调用)', en:'(free mock demo · $0 · no real calls)'},
+  cost_real:{zh:'(实际花费 ${c},已按你的预算上限硬封顶;明细见报告)', en:'(actual cost ${c}, hard-capped at your budget; details in the report)'},
+  // 动态消息
+  b_discovery:{zh:'发现', en:'Discovery'},
+  b_comparison:{zh:'比较', en:'Comparison'},
+  b_local:{zh:'本地 / 场景', en:'Local / scenario'},
+  b_brand_defense:{zh:'品牌防御', en:'Brand defense'},
+  chip_note:{zh:'你的<b>品类</b>和<b>品牌</b>显示为锁定的绿色芯片——句子其余部分可自由编辑;要改它们,请回到第 1 步。',
+    en:'Your <b>category</b> and <b>brand</b> appear as locked green chips — edit the rest of each sentence freely; to change them, go back to Step 1.'},
+  local_note:{zh:'免费模板的本地题较通用——按你的行业编辑,信号更强。',
+    en:'Local questions from the free template are generic — edit them to fit your industry for stronger signal.'},
+  chip_locked:{zh:'已锁定——在第 1 步设置', en:'Locked — set in Step 1'},
+  s1_required:{zh:'请先填写带 * 的必填项:品牌全名、官方域名、品类。', en:'Please fill the required fields (*): brand full name, official domain, and category.'},
+  err_fill:{zh:'请先回到第 1 步填写品牌全名、官方域名和品类。', en:'Please go back to Step 1 and fill in brand name, domain and category.'},
+  err_aikey:{zh:'使用 AI 起草需输入你的 API key。', en:'Enter your API key to use AI drafting.'},
+  drafting_ai:{zh:'AI 起草中(盲态中立题 + 竞品 + 防御题)……', en:'Drafting with AI (blind neutral + competitors + defense)…'},
+  drafting_tpl:{zh:'从模板起草中……', en:'Drafting from template…'},
+  draft_ok_ai:{zh:'AI 已起草 24 道问题', en:'AI drafted 24 questions'},
+  draft_ok_post:{zh:'。可自由审核/编辑,然后点检查。', en:'. Review/edit freely, then Check.'},
+  draft_ok_free:{zh:'已起草 24 道问题。可自由编辑,然后点检查。', en:'Drafted 24 questions. Edit freely, then Check.'},
+  val_clean:{zh:'通过——没有问题。', en:'Clean — no issues.'},
+  tiers_need:{zh:'请先在第 2 步起草问题,才能看到各档估算。', en:'Draft questions in Step 2 first to see per-tier estimates.'},
+  est_failed:{zh:'估算失败', en:'estimate failed'},
+  tier_over:{zh:' · 超预算', en:' · over budget'},
+  over_blocked:{zh:' — 超预算,将被拦下', en:' — OVER BUDGET, will be blocked'},
+  state_label:{zh:'状态:', en:'State: '},
+  stage_label:{zh:' · 阶段:', en:' · stage: '},
+  done_pre:{zh:'完成。', en:'Done. '},
+  btn_open:{zh:'打开报告', en:'Open report'},
+};
+let LANG = localStorage.getItem('aivis_lang') || 'zh';
+function t(k){ const e = I18N[k]; return e ? (e[LANG] ?? e.en ?? k) : k; }
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{ el.innerHTML = t(el.dataset.i18nHtml); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = t(el.dataset.i18nPh); });
+}
+function setLang(l){
+  LANG = l; localStorage.setItem('aivis_lang', l);
+  document.documentElement.lang = (l==='zh' ? 'zh-CN' : 'en');
+  applyI18n();
+  $('langbtn').textContent = (l==='zh' ? 'English' : '中文');
+  if(DRAFT_EST>0 && $('draftest')) $('draftest').textContent = '≈ $'+DRAFT_EST.toFixed(2);
+  if(QUESTIONS.length) renderGrid();
+  if(!$('anthropic_box').classList.contains('hide')) loadTiers();
+}
+function toggleLang(){ setLang(LANG==='zh' ? 'en' : 'zh'); }
+
+function go(n){
+  for(const i of [0,1,2,3]) $('step'+i).classList.toggle('hide', i!==n);
+  for(const i of [1,2,3]) $('tab'+i).classList.toggle('on', i===n);
+  window.scrollTo(0,0);
+}
+// Step1→Step2 必填校验:没填齐就拦住 + 高亮缺的框,避免空着进 Step2 撞"生成没反应"
+function nextFromStep1(){
+  let missing = false;
+  for(const id of ['focal_name','focal_domain','category']){
+    const ok = !!v(id);
+    $(id).style.borderColor = ok ? '' : '#A32D2D';
+    if(!ok) missing = true;
+  }
+  const m = $('s1msg');
+  if(missing){ m.className = 'msg err'; m.textContent = t('s1_required'); return; }
+  m.textContent = ''; go(2);
+}
+function provChange(){
+  const a = document.querySelector('input[name=prov]:checked').value === 'anthropic';
+  $('anthropic_box').classList.toggle('hide', !a);
+  $('mock_note').classList.toggle('hide', a);  // Mock 引导:选真实档时让位给成本说明
+  if(a) loadTiers();
+}
+async function dtierChange(){
+  const ai = document.querySelector('input[name=dtier]:checked').value === 'ai';
+  $('aicost').classList.toggle('hide', !ai);
+  if(ai){  // 取 AI 起草这一步的预估,填进文案
+    const res = await post('/api/draft_estimate', inputs());
+    if(res.status===200){ DRAFT_EST = res.data.est_usd;
+      if($('draftest')) $('draftest').textContent = '≈ $'+DRAFT_EST.toFixed(2); }
+  } else { DRAFT_EST = 0; }
+}
+function syncKey(){ $('api_key').value = v('draft_api_key'); }  // 单一输入源:起草 key 自动用于 Step 3
+function inputs(){
+  const comps = v('competitors').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
+    const [name, domain] = l.split(',').map(s=>s.trim());
+    return {name, domain};
+  }).filter(c=>c.name && c.domain);
+  const aliases = v('aliases').split(',').map(s=>s.trim()).filter(Boolean);
+  return {focal_name:v('focal_name'), focal_domain:v('focal_domain'),
+    category:v('category'), aliases, competitors:comps};
+}
+async function post(path, body){
+  const r = await fetch(path, {method:'POST',
+    headers:{'X-Aivis-Token':TOKEN,'Content-Type':'application/json'},
+    body:JSON.stringify(body)});
+  return {status:r.status, data:await r.json()};
+}
+async function getj(path){
+  const r = await fetch(path, {headers:{'X-Aivis-Token':TOKEN}});
+  return {status:r.status, data:await r.json()};
+}
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+const BUCKET_KEYS = {discovery:'b_discovery', comparison:'b_comparison',
+  local:'b_local', brand_defense:'b_brand_defense'};
+function renderGrid(){
+  const byb = {discovery:[], comparison:[], local:[], brand_defense:[]};
+  QUESTIONS.forEach((q,i)=>byb[q.intent].push({...q, i}));
+  let html = '';
+  if(QUESTIONS.length && QUESTIONS[0].segments)  // 免费档:芯片锁定说明
+    html += '<div class="note">'+t('chip_note')+'</div>';
+  for(const b of ['discovery','comparison','local','brand_defense']){
+    html += '<div class="bucket">'+t(BUCKET_KEYS[b])+'</div>';
+    if(b==='local') html += '<div class="note">'+t('local_note')+'</div>';
+    for(const q of byb[b]){
+      html += '<div class="q" data-i="'+q.i+'"><span class="tag">'+esc(q.id)+'</span>'
+        + (q.segments ? segRow(q) : plainRow(q)) + '</div>';
+    }
+  }
+  $('qgrid').innerHTML = html;
+}
+// AI 档:整句一个可编辑文本框
+function plainRow(q){
+  return '<input type="text" value="'+esc(q.text)
+    + '" oninput="onEdit('+q.i+',this.value)"/>';
+}
+// 免费档:文字段可编辑 + 品类/品牌锁定芯片(独立 span,改不动 → 要改回 Step 1)
+function segRow(q){
+  let inner = '';
+  q.segments.forEach((s,si)=>{
+    inner += s.token
+      ? '<span class="chip" title="'+t('chip_locked')+'">'+esc(s.text)+'</span>'
+      : '<input type="text" class="seg" value="'+esc(s.text)
+        + '" size="'+Math.max(1,s.text.length)
+        + '" oninput="onSegEdit('+q.i+','+si+',this)"/>';
+  });
+  return '<div class="qseg" data-i="'+q.i+'">'+inner+'</div>';
+}
+function onEdit(i, val){ QUESTIONS[i].text = val; staleValidation(); }
+// 编辑文字段:更新该段文本 + 自适应宽度,再按段顺序重组整句题面
+function onSegEdit(i, si, el){
+  QUESTIONS[i].segments[si].text = el.value;
+  el.size = Math.max(1, el.value.length);
+  QUESTIONS[i].text = QUESTIONS[i].segments.map(s=>s.text).join('');
+  staleValidation();
+}
+function staleValidation(){ $('vbtn').classList.remove('ok'); }  // 编辑后旧校验作废→按钮回灰
+
+async function doDraft(){
+  const tier = document.querySelector('input[name=dtier]:checked').value;
+  if(!v('focal_name') || !v('focal_domain') || !v('category')){
+    $('vmsg').className='msg err'; $('vmsg').textContent=t('err_fill');
+    return;
+  }
+  const body = {...inputs(), draft_tier:tier};
+  if(tier==='ai'){
+    if(!v('draft_api_key')){ $('vmsg').className='msg err';
+      $('vmsg').textContent=t('err_aikey'); return; }
+    body.api_key = v('draft_api_key');
+  }
+  $('vmsg').className='msg'; $('vmsg').textContent = tier==='ai' ? t('drafting_ai') : t('drafting_tpl');
+  const res = await post('/api/draft', body);
+  if(res.status!==200){ $('vmsg').className='msg err';
+    $('vmsg').textContent = res.data.error || JSON.stringify(res.data); return; }
+  QUESTIONS = res.data.questions;
+  prefillCompetitors(res.data.competitors);
+  renderGrid();
+  $('vbtn').disabled = false; $('to3').disabled = false;
+  $('vbtn').classList.remove('ok');  // 新起草 → 尚未校验,按钮回灰
+  $('qgrid').scrollIntoView({behavior:'smooth', block:'start'});  // 让用户看见 24 题真的出来了
+  $('vmsg').className='msg ok';
+  if(tier==='ai'){
+    const n = res.data.competitors.length;
+    const comp = n ? (LANG==='zh' ? '(含 '+n+' 个竞品建议)' : ' + suggested '+n+' competitors') : '';
+    $('vmsg').textContent = t('draft_ok_ai') + comp + t('draft_ok_post');
+  } else {
+    $('vmsg').textContent = t('draft_ok_free');
+  }
+}
+function prefillCompetitors(comps){  // AI 建议竞品 → 回填竞品输入框(用户可改;单一输入源)
+  if(!comps || !comps.length) return;
+  const existing = v('competitors');
+  const lines = comps.map(c=>c.name+', '+c.domain).join('\n');
+  $('competitors').value = existing ? existing+'\n'+lines : lines;
+}
+async function doValidate(){
+  const res = await post('/api/validate', {...inputs(), questions:QUESTIONS});
+  document.querySelectorAll('.q').forEach(el=>el.classList.remove('bad','warn'));
+  if(res.status!==200){ $('vmsg').className='msg err';
+    $('vmsg').textContent=res.data.error||JSON.stringify(res.data); return; }
+  const vs = res.data.violations;
+  const byid = {}; QUESTIONS.forEach((q,i)=>byid[q.id]=i);
+  for(const x of vs){
+    const i = byid[x.where];
+    if(i!==undefined){ const row=document.querySelector('.q[data-i="'+i+'"]');
+      if(row) row.classList.add(x.severity==='error'?'bad':'warn'); }
+  }
+  $('vmsg').className = 'msg ' + (res.data.has_errors ? 'err':'ok');
+  $('vbtn').classList.toggle('ok', !res.data.has_errors);  // 校验通过→按钮变绿
+  const lines = vs.map(x=>'• '+x.severity+' '+x.rule+' @'+x.where+': '+x.message).join('\n');
+  if(res.data.has_errors){
+    $('vmsg').textContent = (LANG==='zh'
+      ? vs.length+' 个问题——红色 = 必须修(会让测量有偏):\n'
+      : vs.length+' issue(s) — red = must fix (will bias measurement):\n') + lines;
+  } else if(vs.length){
+    $('vmsg').textContent = (LANG==='zh'
+      ? '通过(无硬错误),'+vs.length+' 条提醒。'
+      : 'Clean (no hard errors), '+vs.length+' warning(s).');
+  } else {
+    $('vmsg').textContent = t('s2_val_clean');
+  }
+}
+async function doEstimate(){
+  const prov = document.querySelector('input[name=prov]:checked').value;
+  const res = await post('/api/estimate',
+    {...inputs(), questions:QUESTIONS, provider:prov, budget_cap_usd:budget()});
+  if(res.status!==200){ $('emsg').className='msg err';
+    $('emsg').textContent=res.data.error||JSON.stringify(res.data); return; }
+  const d = res.data;
+  $('emsg').className = 'msg ' + (d.over_budget?'err':'ok');
+  const core = LANG==='zh'
+    ? d.provider+' / '+d.model+':'+d.n_calls+' 次调用 ≈ $'+d.est_usd+'(上限 $'+d.budget_cap_usd+')'
+    : d.provider+' / '+d.model+': '+d.n_calls+' calls ≈ $'+d.est_usd+' (cap $'+d.budget_cap_usd+')';
+  $('emsg').textContent = core + (d.over_budget ? t('over_blocked') : '');
+}
+function budget(){ const b = parseFloat(v('budget')); return isNaN(b) ? 13 : b; }
+let RUN_TIER = 'standard';
+async function loadTiers(){  // 三档 run 成本总览(需先在 Step2 起草出题目)
+  if(!QUESTIONS.length){ $('tiers').innerHTML =
+    '<div class="note">'+t('tiers_need')+'</div>'; return; }
+  const res = await post('/api/tiers', {...inputs(), questions:QUESTIONS, budget_cap_usd:budget()});
+  if(res.status!==200){ $('tiers').innerHTML =
+    '<div class="msg err">'+esc(res.data.error||t('est_failed'))+'</div>'; return; }
+  TIER_EST = {};
+  $('tiers').innerHTML = res.data.tiers.map(t2=>{
+    TIER_EST[t2.id] = t2.est_usd;
+    const sel = t2.id===RUN_TIER ? ' sel' : '';
+    const over = t2.over_budget ? ' over' : '';
+    const flag = t2.over_budget ? t('tier_over') : '';
+    return '<label class="tier'+sel+'" id="tier_'+t2.id+'" onclick="selectTier(\''+t2.id+'\')">'
+      + '<div class="th"><span class="tn"><input type="radio" name="rtier" value="'+t2.id+'"'
+      + (t2.id===RUN_TIER?' checked':'')+'/> '+esc(t2.label)+'</span>'
+      + '<span class="te'+over+'">≈ $'+t2.est_usd.toFixed(2)+flag+'</span></div>'
+      + '<div class="tm">'+esc(t2.model)+'</div><div class="tb">'+esc(t2.blurb)+'</div></label>';
+  }).join('');
+  updateTotal();
+}
+function selectTier(id){
+  RUN_TIER = id;
+  document.querySelectorAll('.tier').forEach(el=>el.classList.toggle('sel', el.id==='tier_'+id));
+  const r = document.querySelector('input[name=rtier][value="'+id+'"]'); if(r) r.checked = true;
+  updateTotal();
+}
+function updateTotal(){
+  const run = TIER_EST[RUN_TIER]; if(run===undefined){ $('total').textContent=''; return; }
+  let txt;
+  if(LANG==='zh'){
+    txt = '所选运行 ≈ $'+run.toFixed(2);
+    if(DRAFT_EST>0) txt += ' · 含 AI 起草共 ≈ $'+(run+DRAFT_EST).toFixed(2);
+  } else {
+    txt = 'Selected run ≈ $'+run.toFixed(2);
+    if(DRAFT_EST>0) txt += ' · incl. AI drafting ≈ $'+(run+DRAFT_EST).toFixed(2)+' total';
+  }
+  $('total').textContent = txt;
+}
+async function doRun(){
+  const prov = document.querySelector('input[name=prov]:checked').value;
+  const body = {...inputs(), questions:QUESTIONS, provider:prov,
+    tier:RUN_TIER, sequential:$('sequential').checked, budget_cap_usd:budget()};
+  if(prov==='anthropic') body.api_key = v('api_key');
+  const res = await post('/api/run', body);
+  if(res.status!==200){ $('runmsg').className='msg err';
+    $('runmsg').textContent=res.data.error||JSON.stringify(res.data); return; }
+  $('runbtn').disabled = true; $('emsg').textContent='';
+  renderProgress({state:'running', stage:'', percent:0, done:0, total:0, elapsed_s:0, eta_s:null});
+  poll();
+}
+function fmtDur(s){  // 秒 → "m:ss" 或 "Ns"
+  s = Math.max(0, Math.round(s||0));
+  const m = Math.floor(s/60), ss = s%60;
+  return m>0 ? m+':'+String(ss).padStart(2,'0') : ss+'s';
+}
+function etaText(s){  // 预估剩余:null=估算中;<=2s=即将完成;否则分钟/秒
+  if(s==null) return t('eta_calc');
+  if(s<=2) return t('eta_finishing');
+  const human = s>90 ? Math.round(s/60)+(LANG==='zh'?' 分钟':' min') : Math.round(s)+(LANG==='zh'?' 秒':'s');
+  return t('eta_left').replace('{t}', human);
+}
+function renderProgress(st){  // 画进度条 + 活动文字 + ETA + 明细
+  $('progress').classList.remove('hide');
+  const pct = (st.percent==null) ? 0 : st.percent;
+  const fill = $('prog-fill');
+  if(pct < 1){ fill.classList.add('indet'); fill.style.width = ''; }   // 起步:走动画条示意"活着"
+  else { fill.classList.remove('indet'); fill.style.width = pct+'%'; }
+  $('prog-act').textContent = t('act_'+(st.stage || 'starting'));
+  $('prog-eta').textContent = etaText(st.eta_s);
+  let sub = t('prog_elapsed').replace('{e}', fmtDur(st.elapsed_s));
+  if(st.total) sub += t('prog_calls').replace('{d}', st.done).replace('{t}', st.total);
+  if(st.provider==='anthropic') sub += t('prog_cost').replace('{c}', (st.spent_usd||0).toFixed(2));
+  $('prog-sub').textContent = sub;
+  $('runmsg').textContent = '';
+}
+function runDone(st){
+  $('progress').classList.add('hide');
+  $('runmsg').className = 'msg ok';
+  const cost = st.provider==='anthropic'
+    ? t('cost_real').replace('{c}', (st.spent_usd||0).toFixed(2))
+    : t('cost_mock');
+  $('runmsg').innerHTML = t('done_pre') + '<button onclick="openReport()">' + t('btn_open')
+    + '</button> <span class="cost">' + cost + '</span>';
+}
+function runError(st){
+  $('progress').classList.add('hide');
+  $('runmsg').className = 'msg err';
+  $('runmsg').textContent = st.error || st.state;
+  $('runbtn').disabled = false;
+}
+async function poll(){
+  const res = await getj('/api/status'); const st = res.data;
+  if(st.state==='running'){ renderProgress(st); setTimeout(poll, 1200); return; }
+  if(st.state==='done'){ runDone(st); }
+  else { runError(st); }
+}
+async function openReport(){
+  const r = await fetch('/report', {headers:{'X-Aivis-Token':TOKEN}});
+  const html = await r.text();
+  const blob = new Blob([html], {type:'text/html'});
+  window.open(URL.createObjectURL(blob), '_blank');
+}
+// 🟥 刷新保留:服务端 Runner 单例一直留着任务;页面加载时查 /api/status,
+// 在跑就跳回 Step3 续看进度(刷新不会重启 run,不会重复扣费)。
+async function resume(){
+  try{
+    const st = (await getj('/api/status')).data;
+    if(!st || !st.state || st.state==='idle') return;
+    go(3);
+    if(st.state==='running'){ $('runbtn').disabled = true; renderProgress(st); poll(); }
+    else if(st.state==='done'){ runDone(st); }
+    else { runError(st); }
+  }catch(e){ /* 无服务/网络抖动:静默,留在首页 */ }
+}
+setLang(LANG);
+go(0);
+resume();
+</script>
+</body>
+</html>

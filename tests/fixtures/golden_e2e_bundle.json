@@ -1,0 +1,2641 @@
+{
+  "run_id": "e2e-golden",
+  "provider": "mock",
+  "surface_id": "mock_api_web_search",
+  "model": "mock-model-standard",
+  "model_tier": "standard",
+  "prompt_version": "demo-questions-v1",
+  "competitor_set_version": "demo-brands-v1",
+  "config_fingerprint": "ab98ea6f2978ad0644f063d38065354e34c76110682fae9e943f5ddb0b32840e",
+  "tier_basis": "verified-offline-v1",
+  "stratum": "US|en-US|standard",
+  "n_questions": 24,
+  "n_runs": 3,
+  "n_responses_ok": 72,
+  "n_responses_error": 0,
+  "generated_at": "2026-06-10T00:00:00Z",
+  "engine_note": "本结果仅代表此引擎(represents this engine only):Claude API web-search 可见度(代理测量),不是 AI 排名真相。",
+  "brands": [
+    {
+      "brand": "Osprey",
+      "mention_coverage": {
+        "point": 0.6388888888888888,
+        "low": 0.5235248046738358,
+        "high": 0.7401832029382592,
+        "n": 72,
+        "method": "wilson"
+      },
+      "owned_citation_rate": {
+        "point": 0.4444444444444444,
+        "low": 0.33539070561321394,
+        "high": 0.559126091341948,
+        "n": 72,
+        "method": "wilson"
+      },
+      "earned_citation_rate": {
+        "point": 0.2777777777777778,
+        "low": 0.18760285856829367,
+        "high": 0.39046432925235425,
+        "n": 72,
+        "method": "wilson"
+      },
+      "prominence": {
+        "point": 0.48629171420262923,
+        "low": 0.4305778252790589,
+        "high": 0.5379924771812588,
+        "n": 46,
+        "method": "bootstrap"
+      },
+      "mention_sov": {
+        "point": 0.2062780269058296,
+        "low": 0.15836170362120813,
+        "high": 0.2641424511261461,
+        "n": 223,
+        "method": "wilson"
+      },
+      "citation_sov": {
+        "point": 0.19791666666666666,
+        "low": 0.14772674973803623,
+        "high": 0.2599574010106277,
+        "n": 192,
+        "method": "wilson"
+      },
+      "stability": {
+        "point": 0.25,
+        "low": 0.11999366228595004,
+        "high": 0.44899444005154004,
+        "n": 24,
+        "method": "wilson"
+      },
+      "n_obs": 72,
+      "mention_coverage_expanded": {
+        "point": 0.6388888888888888,
+        "low": 0.5235248046738358,
+        "high": 0.7401832029382592,
+        "n": 72,
+        "method": "wilson"
+      },
+      "ambiguous_mention_count": 0
+    },
+    {
+      "brand": "Gregory",
+      "mention_coverage": {
+        "point": 0.5694444444444444,
+        "low": 0.45443306167310615,
+        "high": 0.6774209421329412,
+        "n": 72,
+        "method": "wilson"
+      },
+      "owned_citation_rate": {
+        "point": 0.4444444444444444,
+        "low": 0.33539070561321394,
+        "high": 0.559126091341948,
+        "n": 72,
+        "method": "wilson"
+      },
+      "earned_citation_rate": {
+        "point": 0.20833333333333334,
+        "low": 0.13052054982100708,
+        "high": 0.31569263419359334,
+        "n": 72,
+        "method": "wilson"
+      },
+      "prominence": {
+        "point": 0.42314982429182757,
+        "low": 0.36256683625923647,
+        "high": 0.4833678090368891,
+        "n": 41,
+        "method": "bootstrap"
+      },
+      "mention_sov": {
+        "point": 0.18385650224215247,
+        "low": 0.1385175685541816,
+        "high": 0.23990293388381032,
+        "n": 223,
+        "method": "wilson"
+      },
+      "citation_sov": {
+        "point": 0.18229166666666666,
+        "low": 0.13409289102143374,
+        "high": 0.2429542330418163,
+        "n": 192,
+        "method": "wilson"
+      },
+      "stability": {
+        "point": 0.20833333333333334,
+        "low": 0.09244825352851857,
+        "high": 0.40470453253188665,
+        "n": 24,
+        "method": "wilson"
+      },
+      "n_obs": 72,
+      "mention_coverage_expanded": {
+        "point": 0.5694444444444444,
+        "low": 0.45443306167310615,
+        "high": 0.6774209421329412,
+        "n": 72,
+        "method": "wilson"
+      },
+      "ambiguous_mention_count": 0
+    },
+    {
+      "brand": "Deuter",
+      "mention_coverage": {
+        "point": 0.6805555555555556,
+        "low": 0.5660765126783435,
+        "high": 0.7767438972173802,
+        "n": 72,
+        "method": "wilson"
+      },
+      "owned_citation_rate": {
+        "point": 0.3888888888888889,
+        "low": 0.2846571438524779,
+        "high": 0.5043764500578461,
+        "n": 72,
+        "method": "wilson"
+      },
+      "earned_citation_rate": {
+        "point": 0.3333333333333333,
+        "low": 0.23534643443153785,
+        "high": 0.448203956433948,
+        "n": 72,
+        "method": "wilson"
+      },
+      "prominence": {
+        "point": 0.410212433670431,
+        "low": 0.35444219660918247,
+        "high": 0.46732595012183825,
+        "n": 49,
+        "method": "bootstrap"
+      },
+      "mention_sov": {
+        "point": 0.21973094170403587,
+        "low": 0.17038518389024443,
+        "high": 0.27856916224272715,
+        "n": 223,
+        "method": "wilson"
+      },
+      "citation_sov": {
+        "point": 0.20833333333333334,
+        "low": 0.15688915067163695,
+        "high": 0.27121968453396966,
+        "n": 192,
+        "method": "wilson"
+      },
+      "stability": {
+        "point": 0.4166666666666667,
+        "low": 0.24467602609811764,
+        "high": 0.6116533413477124,
+        "n": 24,
+        "method": "wilson"
+      },
+      "n_obs": 72,
+      "mention_coverage_expanded": {
+        "point": 0.6805555555555556,
+        "low": 0.5660765126783435,
+        "high": 0.7767438972173802,
+        "n": 72,
+        "method": "wilson"
+      },
+      "ambiguous_mention_count": 0
+    },
+    {
+      "brand": "REI Co-op",
+      "mention_coverage": {
+        "point": 0.5277777777777778,
+        "low": 0.4140067049007661,
+        "high": 0.6387348966216531,
+        "n": 72,
+        "method": "wilson"
+      },
+      "owned_citation_rate": {
+        "point": 0.4166666666666667,
+        "low": 0.3098521747473985,
+        "high": 0.5319230206853446,
+        "n": 72,
+        "method": "wilson"
+      },
+      "earned_citation_rate": {
+        "point": 0.25,
+        "low": 0.1643905122547895,
+        "high": 0.3609350740434394,
+        "n": 72,
+        "method": "wilson"
+      },
+      "prominence": {
+        "point": 0.45798351907782897,
+        "low": 0.39934385876876977,
+        "high": 0.5115828739830076,
+        "n": 38,
+        "method": "bootstrap"
+      },
+      "mention_sov": {
+        "point": 0.17040358744394618,
+        "low": 0.12673957236162342,
+        "high": 0.2252307386907511,
+        "n": 223,
+        "method": "wilson"
+      },
+      "citation_sov": {
+        "point": 0.1875,
+        "low": 0.1386222924032981,
+        "high": 0.24863717388842327,
+        "n": 192,
+        "method": "wilson"
+      },
+      "stability": {
+        "point": 0.08333333333333333,
+        "low": 0.023158815297043306,
+        "high": 0.25848802193210685,
+        "n": 24,
+        "method": "wilson"
+      },
+      "n_obs": 72,
+      "mention_coverage_expanded": {
+        "point": 0.5277777777777778,
+        "low": 0.4140067049007661,
+        "high": 0.6387348966216531,
+        "n": 72,
+        "method": "wilson"
+      },
+      "ambiguous_mention_count": 0
+    },
+    {
+      "brand": "Granite Gear",
+      "mention_coverage": {
+        "point": 0.6805555555555556,
+        "low": 0.5660765126783435,
+        "high": 0.7767438972173802,
+        "n": 72,
+        "method": "wilson"
+      },
+      "owned_citation_rate": {
+        "point": 0.4722222222222222,
+        "low": 0.36126510337834705,
+        "high": 0.5859932950992339,
+        "n": 72,
+        "method": "wilson"
+      },
+      "earned_citation_rate": {
+        "point": 0.3611111111111111,
+        "low": 0.25981679706174077,
+        "high": 0.4764751953261641,
+        "n": 72,
+        "method": "wilson"
+      },
+      "prominence": {
+        "point": 0.4309104762616436,
+        "low": 0.3819182256249426,
+        "high": 0.48009668507812353,
+        "n": 49,
+        "method": "bootstrap"
+      },
+      "mention_sov": {
+        "point": 0.21973094170403587,
+        "low": 0.17038518389024443,
+        "high": 0.27856916224272715,
+        "n": 223,
+        "method": "wilson"
+      },
+      "citation_sov": {
+        "point": 0.22395833333333334,
+        "low": 0.17073463428884017,
+        "high": 0.2880112276021804,
+        "n": 192,
+        "method": "wilson"
+      },
+      "stability": {
+        "point": 0.20833333333333334,
+        "low": 0.09244825352851857,
+        "high": 0.40470453253188665,
+        "n": 24,
+        "method": "wilson"
+      },
+      "n_obs": 72,
+      "mention_coverage_expanded": {
+        "point": 0.6805555555555556,
+        "low": 0.5660765126783435,
+        "high": 0.7767438972173802,
+        "n": 72,
+        "method": "wilson"
+      },
+      "ambiguous_mention_count": 0
+    }
+  ],
+  "tiers": [
+    {
+      "brand": "Osprey",
+      "question_id": "b01",
+      "run_index": 0,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b02",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b02",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b03",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b04",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "b04",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c01",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c02",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c02",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c03",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c04",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c05",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c05",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c05",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c06",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "c06",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d02",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d04",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d04",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d05",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d05",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d05",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d06",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d06",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d07",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d07",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d07",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d08",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d08",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "d08",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l01",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l02",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l02",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l04",
+      "run_index": 0,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l04",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l05",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l05",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l05",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l06",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Osprey",
+      "question_id": "l06",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b02",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b03",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b04",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "b04",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c03",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c03",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c04",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c05",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c05",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c05",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c06",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c06",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "c06",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d02",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d02",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d04",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d05",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d05",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d05",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d06",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d06",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d07",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d07",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d07",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d08",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d08",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "d08",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l01",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l02",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l02",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l03",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l04",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l04",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l05",
+      "run_index": 0,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l05",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l05",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l06",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Gregory",
+      "question_id": "l06",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b02",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b02",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b03",
+      "run_index": 0,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b03",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "b04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c01",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c02",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c05",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c05",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c05",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c06",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "c06",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d01",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d02",
+      "run_index": 0,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d02",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d03",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d04",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d04",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d05",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d05",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d05",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d06",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d06",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d07",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d07",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d07",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d08",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d08",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "d08",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l02",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l03",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l04",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l05",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l05",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l05",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l06",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Deuter",
+      "question_id": "l06",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b01",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b03",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b03",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b04",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "b04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c01",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c02",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c02",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c02",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c03",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c03",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c04",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c05",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c05",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c05",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c06",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c06",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "c06",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d02",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d03",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d03",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d04",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d05",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d05",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d05",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d06",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d06",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d06",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d07",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d07",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d07",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d08",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d08",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "d08",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l03",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l04",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l05",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l05",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l05",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l06",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l06",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "REI Co-op",
+      "question_id": "l06",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b01",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b02",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b02",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b03",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b04",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "b04",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c01",
+      "run_index": 1,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c02",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c04",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c04",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c05",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c05",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c05",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c06",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c06",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "c06",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d01",
+      "run_index": 0,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d01",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d01",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d02",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d02",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d02",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d03",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d04",
+      "run_index": 2,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d05",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d05",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d05",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d06",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d06",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d07",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d07",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d07",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d08",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d08",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "d08",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l01",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l01",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l01",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l02",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l02",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l02",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l03",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l03",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l03",
+      "run_index": 2,
+      "tier": "mentioned"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l04",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l04",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l04",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l05",
+      "run_index": 0,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l05",
+      "run_index": 1,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l05",
+      "run_index": 2,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l06",
+      "run_index": 0,
+      "tier": "verified"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l06",
+      "run_index": 1,
+      "tier": "none"
+    },
+    {
+      "brand": "Granite Gear",
+      "question_id": "l06",
+      "run_index": 2,
+      "tier": "verified"
+    }
+  ],
+  "evidence": [
+    {
+      "citation_url": "https://gear-review-weekly.example/reviews/deuter",
+      "normalized_url": "https://gear-review-weekly.example/reviews/deuter",
+      "canonical_domain": "gear-review-weekly.example",
+      "owned_or_earned": "earned",
+      "owner_brand": null,
+      "source_class": "third_party",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://gear-review-weekly.example/reviews/granite-gear",
+      "normalized_url": "https://gear-review-weekly.example/reviews/granite-gear",
+      "canonical_domain": "gear-review-weekly.example",
+      "owned_or_earned": "earned",
+      "owner_brand": null,
+      "source_class": "third_party",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://gear-review-weekly.example/reviews/gregory",
+      "normalized_url": "https://gear-review-weekly.example/reviews/gregory",
+      "canonical_domain": "gear-review-weekly.example",
+      "owned_or_earned": "earned",
+      "owner_brand": null,
+      "source_class": "third_party",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://gear-review-weekly.example/reviews/osprey",
+      "normalized_url": "https://gear-review-weekly.example/reviews/osprey",
+      "canonical_domain": "gear-review-weekly.example",
+      "owned_or_earned": "earned",
+      "owner_brand": null,
+      "source_class": "third_party",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://gear-review-weekly.example/reviews/rei-co-op",
+      "normalized_url": "https://gear-review-weekly.example/reviews/rei-co-op",
+      "canonical_domain": "gear-review-weekly.example",
+      "owned_or_earned": "earned",
+      "owner_brand": null,
+      "source_class": "third_party",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://outdoor-news.example/roundup/best-picks",
+      "normalized_url": "https://outdoor-news.example/roundup/best-picks",
+      "canonical_domain": "outdoor-news.example",
+      "owned_or_earned": "earned",
+      "owner_brand": null,
+      "source_class": "third_party",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://www.deuter.com/products?utm_source=mock",
+      "normalized_url": "https://www.deuter.com/products",
+      "canonical_domain": "deuter.com",
+      "owned_or_earned": "owned",
+      "owner_brand": "Deuter",
+      "source_class": "brand_site",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://www.granitegear.com/products?utm_source=mock",
+      "normalized_url": "https://www.granitegear.com/products",
+      "canonical_domain": "granitegear.com",
+      "owned_or_earned": "owned",
+      "owner_brand": "Granite Gear",
+      "source_class": "brand_site",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://www.gregorypacks.com/products?utm_source=mock",
+      "normalized_url": "https://www.gregorypacks.com/products",
+      "canonical_domain": "gregorypacks.com",
+      "owned_or_earned": "owned",
+      "owner_brand": "Gregory",
+      "source_class": "brand_site",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://www.osprey.com/products?utm_source=mock",
+      "normalized_url": "https://www.osprey.com/products",
+      "canonical_domain": "osprey.com",
+      "owned_or_earned": "owned",
+      "owner_brand": "Osprey",
+      "source_class": "brand_site",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    },
+    {
+      "citation_url": "https://www.rei.com/products?utm_source=mock",
+      "normalized_url": "https://www.rei.com/products",
+      "canonical_domain": "rei.com",
+      "owned_or_earned": "owned",
+      "owner_brand": "REI Co-op",
+      "source_class": "brand_site",
+      "reachable": true,
+      "check_method": "offline-assumed",
+      "snippet": null,
+      "brands_on_page": [],
+      "checked_at": "2026-06-10T00:00:00Z"
+    }
+  ],
+  "health": {
+    "citation_validity_rate": 1.0,
+    "ambiguous_ratio": 0.0,
+    "failure_rate": 0.0,
+    "light": "red",
+    "flags": [
+      "all-intervals-overlap:ranking-indicative-only"
+    ]
+  }
+}

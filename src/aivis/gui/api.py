@@ -1,0 +1,181 @@
+"""api —— 本地向导端点逻辑(dict→dict,不碰 http,便于离线单测)。
+
+2.3 先接**不花钱**的三个:draft(免费档模板起草)/ validate(质检)/ estimate(成本上界,离线)。
+花钱的 run(冻结 + subprocess `aivis run`)+ AI 档起草(需 key)留下一轮。
+所有函数输入 = 已解析的 JSON dict,输出 = 可 json 的 dict;坏输入抛 ValueError(server 映射 400)。
+"""
+
+from typing import Any, cast
+
+from aivis.configcheck import has_errors, validate_config
+from aivis.contracts.config import Brand, FrozenConfig, Intent, Question
+from aivis.providers.anthropic import TIER_INFO, AnthropicAdapter, estimate_draft_cost_usd
+from aivis.providers.drafter import AnthropicTextSender, TextSender, draft_all
+from aivis.providers.mock import MockAdapter
+from aivis.templater import draft_template_segments
+
+_INTENTS = ("discovery", "comparison", "local", "brand_defense")
+
+
+def _str(payload: dict[str, Any], key: str, *, required: bool = False) -> str:
+    val = str(payload.get(key, "") or "").strip()
+    if required and not val:
+        raise ValueError(f"缺少必填字段: {key}")
+    return val
+
+
+def _question(q: dict[str, Any]) -> Question:
+    intent = str(q.get("intent", ""))
+    if intent not in _INTENTS:
+        raise ValueError(f"未知 intent: {intent!r}")
+    text = str(q.get("text", "")).strip()
+    if not text:
+        raise ValueError("问题文本为空")
+    return Question(id=str(q.get("id", "")), intent=cast(Intent, intent), text=text)
+
+
+def _questions_from(payload: dict[str, Any]) -> tuple[Question, ...]:
+    raw = payload.get("questions")
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("缺少 questions")
+    return tuple(_question(q) for q in raw)
+
+
+def _config_from(payload: dict[str, Any], questions: tuple[Question, ...]) -> FrozenConfig:
+    """从向导输入(单一输入源)+ 题目组装焦点模式 FrozenConfig(内存,不落盘)。"""
+    focal_name = _str(payload, "focal_name", required=True)
+    focal_domain = _str(payload, "focal_domain", required=True)
+    aliases = tuple(str(a).strip() for a in (payload.get("aliases") or []) if str(a).strip())
+    peers = [Brand(name=focal_name, aliases=aliases, domains=(focal_domain,), is_focal=True)]
+    for c in payload.get("competitors") or []:
+        name, domain = str(c.get("name", "")).strip(), str(c.get("domain", "")).strip()
+        if name and domain:
+            peers.append(Brand(name=name, domains=(domain,)))
+    return FrozenConfig(
+        version="wizard",
+        prompt_version="wizard-questions",
+        competitor_set_version="wizard-brands",
+        focal_domain=focal_domain,
+        peers=tuple(peers),
+        competitors_on=len(peers) > 1,
+        questions=questions,
+        tier=_str(payload, "tier") or "standard",
+        locale="en-US",
+        region="US",
+        temperature=0.0,
+        n_runs=3,
+        sequential=bool(payload.get("sequential")),  # 向导勾选:序贯采样(n_runs 作上限)
+        max_uses=3,
+        budget_cap_usd=float(payload.get("budget_cap_usd", 13.0)),
+    )
+
+
+def draft(payload: dict[str, Any]) -> dict[str, Any]:
+    """起草 24 题。两档:free=模板($0,不用 key);ai=盲起草(需 api_key,内存传、不落盘)。"""
+    tier = _str(payload, "draft_tier") or "free"
+    if tier == "free":
+        return _draft_free(payload)
+    if tier == "ai":
+        return _draft_ai(payload, _ai_sender(payload))
+    raise ValueError(f"未知起草档 {tier!r}(可选 free / ai)")
+
+
+def _draft_free(payload: dict[str, Any]) -> dict[str, Any]:
+    """免费档:模板填充 24 题($0,不用 key)。返回分段形态:品类/品牌为锁定芯片,余可编辑。"""
+    questions = draft_template_segments(
+        category=_str(payload, "category"), focal_name=_str(payload, "focal_name", required=True)
+    )
+    return {
+        "draft_tier": "free",
+        "questions": [
+            {
+                "id": q.id,
+                "intent": q.intent,
+                "text": q.text,  # 初始完整题面(前端编辑文字段后自行重组)
+                "segments": [
+                    {"text": s.text, **({"token": s.token} if s.token else {})} for s in q.segments
+                ],
+            }
+            for q in questions
+        ],
+        "competitors": [],  # 免费档竞品手填;AI 档由 drafter 建议
+    }
+
+
+def _ai_sender(payload: dict[str, Any]) -> TextSender:
+    """AI 档网络触点:key 只在本机内存(经 localhost 提交)、不落盘、不进日志(CLAUDE §5)。"""
+    api_key = _str(payload, "api_key") or None
+    if not api_key:
+        raise ValueError("AI 档起草需要 api_key(只在本机内存、不落盘、仅发往 api.anthropic.com)")
+    return AnthropicTextSender(api_key=api_key, region="US")
+
+
+def _draft_ai(payload: dict[str, Any], sender: TextSender) -> dict[str, Any]:
+    """AI 档:drafter 盲起草 24 题 + 竞品建议。sender 抽出以便离线单测。"""
+    result = draft_all(
+        sender,
+        category=_str(payload, "category", required=True),  # 盲起草必须有品类
+        focal_name=_str(payload, "focal_name", required=True),
+    )
+    return {
+        "draft_tier": "ai",
+        "questions": [{"id": q.id, "intent": q.intent, "text": q.text} for q in result.questions],
+        "competitors": [{"name": c.name, "domain": c.domain} for c in result.competitors],
+    }
+
+
+def validate(payload: dict[str, Any]) -> dict[str, Any]:
+    """对(可能已编辑的)题目 + 品牌跑 configcheck,返回违规清单(前端据此标黄/红)。"""
+    cfg = _config_from(payload, _questions_from(payload))
+    violations = validate_config(cfg, phase="final")
+    return {
+        "has_errors": has_errors(violations),
+        "violations": [
+            {"severity": v.severity, "rule": v.rule, "where": v.where, "message": v.message}
+            for v in violations
+        ],
+    }
+
+
+def estimate(payload: dict[str, Any]) -> dict[str, Any]:
+    """成本上界(离线、不花钱、不调 API):n 次调用 × 单价表。"""
+    cfg = _config_from(payload, _questions_from(payload))
+    provider = _str(payload, "provider") or "mock"
+    adapter = (
+        AnthropicAdapter(tier=cfg.tier) if provider == "anthropic" else MockAdapter(tier=cfg.tier)
+    )
+    n_calls = len(cfg.questions) * cfg.n_runs
+    est = adapter.estimate_cost_usd(n_calls, cfg)
+    return {
+        "provider": adapter.provider_name,
+        "model": adapter.model_name,
+        "n_calls": n_calls,
+        "est_usd": round(est, 2),
+        "budget_cap_usd": cfg.budget_cap_usd,
+        "over_budget": est > cfg.budget_cap_usd,
+    }
+
+
+def tiers(payload: dict[str, Any]) -> dict[str, Any]:
+    """三档 run 的成本总览(离线、不花钱):每档 label/model/blurb + 本配置预估 + 是否超预算。"""
+    cfg = _config_from(payload, _questions_from(payload))
+    n_calls = len(cfg.questions) * cfg.n_runs
+    out: list[dict[str, Any]] = []
+    for info in TIER_INFO:
+        est = AnthropicAdapter(tier=info.id).estimate_cost_usd(n_calls, cfg)
+        out.append(
+            {
+                "id": info.id,
+                "label": info.label,
+                "model": info.model,
+                "blurb": info.blurb,
+                "est_usd": round(est, 2),
+                "over_budget": est > cfg.budget_cap_usd,
+            }
+        )
+    return {"n_calls": n_calls, "budget_cap_usd": cfg.budget_cap_usd, "tiers": out}
+
+
+def draft_estimate(payload: dict[str, Any]) -> dict[str, Any]:
+    """AI 起草这一步的成本上界(离线、不花钱):中立+防御 2 次无搜索 + 竞品 1 次 web_search。"""
+    return {"est_usd": round(estimate_draft_cost_usd(), 2)}

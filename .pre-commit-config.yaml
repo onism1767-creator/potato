@@ -1,0 +1,63 @@
+# 本地提交检查员(快;权威关卡在 CI,见 .github/workflows/ci.yml)—— CLAUDE.md §10.5
+# 启用: .venv\Scripts\python.exe -m pre_commit install
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  # 格式/质量检查员
+  # rev 必须与 pyproject 的 ruff==0.15.16 一致:否则 pre-commit 与 venv/CI 格式化结果不同,
+  # 会出现"本地 pre-commit 过、CI 的 ruff format --check 红"(formatter 跨版本输出有差异)。
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.16
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # 密钥检查员:疑似密钥入库直接拦下
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # 层级检查员:纯层不接网络、不跨层乱引用
+  # language: python 让 pre-commit 自建隔离环境(不依赖 PATH 上的 python,
+  # 也绕开 Windows 应用控制策略对 exe shim 的拦截);src 注入 sys.path 供 grimp 解析包
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: import-linter(层级契约)
+        entry: python -c "import sys; sys.path.insert(0, 'src'); from importlinter.cli import lint_imports; sys.exit(lint_imports())"
+        language: python
+        additional_dependencies:
+          - "import-linter>=2.0"
+          - "pydantic>=2.7"
+          - "PyYAML>=6.0"
+          - "anthropic>=0.60"
+        pass_filenames: false
+        files: \.py$
+
+  # 类型检查员:mypy 全量(src + tests,与 CI 一致)。无参数 → 走 pyproject [tool.mypy]
+  # files=["src/aivis","tests"]。过去只跑 mypy src 漏过 tests 的类型错,故纳入 pre-commit。
+  - repo: local
+    hooks:
+      - id: mypy
+        name: 类型检查员(mypy,src+tests)
+        entry: mypy
+        language: python
+        additional_dependencies:
+          - "mypy>=1.10"
+          - "pydantic>=2.7"
+          - "PyYAML>=6.0"
+          - "types-PyYAML"
+          - "anthropic>=0.60"
+          - "httpx"
+          - "pytest"
+        pass_filenames: false
+        files: \.py$
