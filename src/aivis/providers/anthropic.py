@@ -20,8 +20,10 @@ from typing import Any, cast
 import anthropic
 from anthropic.types import Message
 
+from aivis.contracts.adapter import ModelInfo
 from aivis.contracts.config import FrozenConfig, Question
 from aivis.contracts.records import Citation, ErrorCode, RawResponse
+from aivis.providers import catalog
 
 # 工具版本(2026-06 真实 API 对照实验定论,见 ARCHITECTURE.md §9):
 # 必须用经典版 web_search_20250305——它把来源作为内联 web_search_result_location
@@ -30,24 +32,42 @@ from aivis.contracts.records import Citation, ErrorCode, RawResponse
 # (12 vs 0 的对照),且过滤代码会偶发崩溃——会让核心引用指标失效,故不用。
 _TOOL_TYPE = "web_search_20250305"
 
-# 三档:省钱(Haiku)/ 标准(Sonnet,默认)/ 高质量(Opus)。便宜档默认,旗舰显式选(§6.4)
+# 三档便利映射(`--tier`);显式 `model=` 优先。standard 沿用 2026-06 经真实 API 验证的 Sonnet 4.6。
 _TIER_MODELS = {
     "economy": "claude-haiku-4-5",
     "standard": "claude-sonnet-4-6",
     "high": "claude-opus-4-8",
+    "flagship": "claude-fable-5-1",
 }
 
-# 单价表:provider × model × tool_path(2026-06 官方 pricing;接入新模型时同步更新)
-_TOKEN_PRICES_PER_MTOK = {
-    "claude-haiku-4-5": (1.0, 5.0),
-    "claude-sonnet-4-6": (3.0, 15.0),
-    "claude-opus-4-8": (5.0, 25.0),
+
+@dataclass(frozen=True)
+class _ModelSpec:
+    """单模型计价/请求参数(provider × model × tool_path;2026-09 官方 pricing)。"""
+
+    in_price: float  # $/M 输入 token
+    out_price: float  # $/M 输出 token(含 thinking)
+    cache_read_mult: float = 0.1  # 缓存读取价 = 输入价 × 此倍率
+    sampling: bool = True  # False:模型拒绝 temperature(传了 400)
+    max_tokens: int = 4096  # 思考常开的 5.x 系列给更大上限(思考 token 计入输出)
+    tool_type: str = _TOOL_TYPE  # 5.x 是否接受经典版工具待真机验证;不接受会显式报错不静默
+
+
+_SPECS: dict[str, _ModelSpec] = {
+    "claude-haiku-4-5": _ModelSpec(1.0, 5.0),
+    "claude-sonnet-4-6": _ModelSpec(3.0, 15.0),
+    "claude-sonnet-5": _ModelSpec(2.0, 10.0, sampling=False, max_tokens=8192),
+    "claude-opus-4-8": _ModelSpec(5.0, 25.0, sampling=False),
+    "claude-opus-5": _ModelSpec(5.0, 25.0, sampling=False, max_tokens=8192),
+    "claude-fable-5-1": _ModelSpec(
+        10.0, 50.0, cache_read_mult=0.025, sampling=False, max_tokens=8192
+    ),
 }
 
 
 @dataclass(frozen=True)
 class TierInfo:
-    """一个 run 档位的展示元数据(单一真相源:GUI / CLI / 估算共用,文案英文)。"""
+    """一个 run 档位的展示元数据(GUI 三档卡沿用;完整目录见 providers.catalog)。"""
 
     id: str  # economy / standard / high
     model: str  # 对应模型 id
@@ -55,31 +75,16 @@ class TierInfo:
     blurb: str  # 一句话定位/意义
 
 
-# 三档说明(单一真相源)。顺序 = 便宜 → 标准 → 高质量;GUI 据此渲染档位卡 + 估价。
-TIER_INFO: tuple[TierInfo, ...] = (
-    TierInfo(
-        id="economy",
-        model="claude-haiku-4-5",
-        label="Economy",
-        blurb="Cheapest & fastest, lower depth — good for a quick first look or a tight budget.",
-    ),
-    TierInfo(
-        id="standard",
-        model="claude-sonnet-4-6",
-        label="Standard",
-        blurb="Balanced default — strong quality at moderate cost. Recommended for most baselines.",
-    ),
-    TierInfo(
-        id="high",
-        model="claude-opus-4-8",
-        label="High quality",
-        blurb="Most capable — best accuracy, highest cost; for a final authoritative baseline.",
-    ),
-)
+def _tier_info(tier: str) -> TierInfo:
+    info = catalog.find_model("anthropic", _TIER_MODELS[tier])
+    return TierInfo(id=tier, model=info.model, label=info.label, blurb=info.blurb)
+
+
+# 三档说明(GUI 档位卡 + 估价;顺序 = 便宜 → 标准 → 高质量)
+TIER_INFO: tuple[TierInfo, ...] = tuple(_tier_info(t) for t in ("economy", "standard", "high"))
 _SEARCH_COST_PER_USE = 10.0 / 1000.0  # web search $10/千次
-# Anthropic 提示缓存价位:写 1.25×、读 0.1× 基础输入价(真实计价用)
+# Anthropic 提示缓存价位:写 1.25× 基础输入价;读按模型倍率(真实计价用)
 _CACHE_WRITE_MULT = 1.25
-_CACHE_READ_MULT = 0.1
 
 # 成本估算(2026-06 真实全量运行校准):web_search 把搜索结果喂回 + pause_turn 续传
 # 重发上下文,每次 web 搜索约带来 1.2 万输入 token(旧版写死 4000 严重低估——实测每次
@@ -88,17 +93,14 @@ _EST_BASE_INPUT_TOKENS = 2000
 _EST_INPUT_TOKENS_PER_SEARCH = 12000
 _EST_OUTPUT_TOKENS = 2000
 
-# Opus 4.8 已移除采样参数(传 temperature 会 400);Sonnet 4.6 / Haiku 4.5 仍支持 pinned temperature
-_SAMPLING_PARAM_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5"}
-
-_MAX_TOKENS = 4096
 _MAX_CONTINUATIONS = 3  # pause_turn 续传上限:bounded run,不许无上限深搜(CLAUDE.md §5)
 
 
 def estimate_draft_cost_usd(tier: str = "standard") -> float:
     """AI 起草成本上界(用同一单价表,不臆造):中立 + 防御 2 次无搜索调用 + 竞品 1 次
     web_search 调用(max_uses=3)。drafter 默认用 standard(Sonnet)。"""
-    in_price, out_price = _TOKEN_PRICES_PER_MTOK[_TIER_MODELS[tier]]
+    spec = _SPECS[_TIER_MODELS[tier]]
+    in_price, out_price = spec.in_price, spec.out_price
     no_search = _EST_BASE_INPUT_TOKENS / 1e6 * in_price + _EST_OUTPUT_TOKENS / 1e6 * out_price
     search = (
         (_EST_BASE_INPUT_TOKENS + 3 * _EST_INPUT_TOKENS_PER_SEARCH) / 1e6 * in_price
@@ -119,10 +121,15 @@ def _utc_now() -> str:
 class AnthropicAdapter:
     """真 Claude API web_search 探测(实现 contracts.adapter.ProviderAdapter)。"""
 
-    def __init__(self, tier: str = "standard") -> None:
-        if tier not in _TIER_MODELS:
-            raise ValueError(f"未知模型档位 {tier!r},可选: {sorted(_TIER_MODELS)}")
-        self._tier = tier
+    def __init__(self, tier: str = "standard", *, model: str | None = None) -> None:
+        if model is None:
+            if tier not in _TIER_MODELS:
+                raise ValueError(f"未知模型档位 {tier!r},可选: {sorted(_TIER_MODELS)}")
+            model = _TIER_MODELS[tier]
+        if model not in _SPECS:
+            raise ValueError(f"未知 Claude 模型 {model!r},可选: {sorted(_SPECS)}")
+        self._model = model
+        self._spec = _SPECS[model]
         self._client: anthropic.Anthropic | None = None  # 惰性创建:构造不要求密钥
 
     @property
@@ -135,7 +142,7 @@ class AnthropicAdapter:
 
     @property
     def model_name(self) -> str:
-        return _TIER_MODELS[self._tier]
+        return self._model
 
     @property
     def tool_path(self) -> str:
@@ -143,14 +150,18 @@ class AnthropicAdapter:
 
     @property
     def tool_version(self) -> str | None:
-        return _TOOL_TYPE
+        return self._spec.tool_type
+
+    @property
+    def info(self) -> ModelInfo:
+        return catalog.find_model("anthropic", self._model)
 
     def estimate_cost_usd(self, n_calls: int, cfg: FrozenConfig) -> float:
         """保守上界:按 max_uses 满额搜索 + 每搜索约 1.2 万输入 token(实测校准)计费。
 
         真实通常更低(模型常不用满 max_uses);硬封顶由 probe 按真实累计花费执行。
         """
-        in_price, out_price = _TOKEN_PRICES_PER_MTOK[self.model_name]
+        in_price, out_price = self._spec.in_price, self._spec.out_price
         searches_per_call = cfg.max_uses if cfg.max_uses is not None else 1
         input_tokens = _EST_BASE_INPUT_TOKENS + searches_per_call * _EST_INPUT_TOKENS_PER_SEARCH
         token_cost = input_tokens / 1e6 * in_price + _EST_OUTPUT_TOKENS / 1e6 * out_price
@@ -158,7 +169,7 @@ class AnthropicAdapter:
 
     def actual_cost_usd(self, response: RawResponse) -> float:
         """从 raw_json 真实 usage 计价(含缓存分级);供 probe 运行中累计封顶。"""
-        in_price, out_price = _TOKEN_PRICES_PER_MTOK[self.model_name]
+        in_price, out_price = self._spec.in_price, self._spec.out_price
         try:
             messages = json.loads(response.raw_json).get("messages", [])
         except (ValueError, TypeError):
@@ -170,7 +181,7 @@ class AnthropicAdapter:
             cwrite += usage.get("cache_creation_input_tokens") or 0
             cread += usage.get("cache_read_input_tokens") or 0
             out += usage.get("output_tokens") or 0
-        input_billed = reg + cwrite * _CACHE_WRITE_MULT + cread * _CACHE_READ_MULT
+        input_billed = reg + cwrite * _CACHE_WRITE_MULT + cread * self._spec.cache_read_mult
         token_cost = input_billed / 1e6 * in_price + out / 1e6 * out_price
         return token_cost + response.search_count * _SEARCH_COST_PER_USE
 
@@ -226,18 +237,18 @@ class AnthropicAdapter:
         return cast(Message, self._client.messages.create(**params))
 
     def _build_params(self, messages: list[dict[str, Any]], cfg: FrozenConfig) -> dict[str, Any]:
-        tool: dict[str, Any] = {"type": _TOOL_TYPE, "name": "web_search"}
+        tool: dict[str, Any] = {"type": self._spec.tool_type, "name": "web_search"}
         if cfg.max_uses is not None:
             tool["max_uses"] = cfg.max_uses
         if cfg.region:
             tool["user_location"] = {"type": "approximate", "country": cfg.region}
         params: dict[str, Any] = {
             "model": self.model_name,
-            "max_tokens": _MAX_TOKENS,
+            "max_tokens": self._spec.max_tokens,
             "messages": messages,
             "tools": [tool],
         }
-        if self.model_name in _SAMPLING_PARAM_MODELS:
+        if self._spec.sampling:
             params["temperature"] = cfg.temperature  # pinned(clean-room 要求)
         return params
 
@@ -282,6 +293,13 @@ class AnthropicAdapter:
         elif responses[-1].stop_reason == "pause_turn":
             finished_ok, error_code = False, "other"
             error_detail = f"pause_turn 续传 {_MAX_CONTINUATIONS} 次后仍未完成,按失败记录"
+        elif responses[-1].stop_reason == "refusal":
+            # 安全层拒答(HTTP 200 + stop_reason=refusal;Fable/Opus 5 等):记为失败、不当空回答;
+            # 也**不做**服务端 fallback——换模型作答会让"此表面"的测量失真。
+            finished_ok, error_code = False, "refusal"
+            details = getattr(responses[-1], "stop_details", None)
+            category = getattr(details, "category", None) if details is not None else None
+            error_detail = f"refusal(category={category})"
 
         return RawResponse(
             run_id=run_id,

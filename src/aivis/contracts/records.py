@@ -13,7 +13,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 # 封闭错误码集合:防止自由字符串把失败率指标搞碎
-ErrorCode = Literal["timeout", "rate_limit", "tool_error", "parse_error", "other"]
+# refusal(v0.2):模型/安全层拒答(Claude 的 refusal 停止原因、Gemini SAFETY 等),
+# 记为失败、不当空回答
+ErrorCode = Literal["timeout", "rate_limit", "tool_error", "parse_error", "refusal", "other"]
 
 # 证据档位:none < mentioned < cited < verified;只有 verified 进核心评分(CLAUDE.md §7)
 Tier = Literal["none", "mentioned", "cited", "verified"]
@@ -83,6 +85,15 @@ class RunManifest(BaseModel):
     search_count: int | None = None
     # 冻结配置内容指纹:版本号靠人 bump,指纹机械暴露"改了配置没 bump"的静默基线污染
     config_fingerprint: str
+    # ---- v0.2 多引擎诚实字段(带默认,旧清单照常读回;None = 该记录未记录此项)----
+    # 采样温度/区域是否真的传给了引擎:部分模型拒绝 temperature、部分 API 无区域参数,
+    # 此时 temperature/region 字段只是"配置值",清单必须如实标注"未生效"。
+    temperature_applied: bool | None = None
+    region_applied: bool | None = None
+    # 表面类型:answer(回答+引用)/ search_only(纯搜索结果,无回答文本)
+    surface_kind: str = "answer"
+    # 本次运行真实累计花费(按 usage 计价;mock 恒 0)——账单依据
+    cost_usd_actual: float | None = None
 
 
 # ---------------------------------------------------------------- ② 证据层
@@ -268,6 +279,9 @@ class ScoreBundle(BaseModel):
     tiers: tuple[TierAssignment, ...]
     evidence: tuple[EvidenceRecord, ...]
     health: HealthSummary
+    # ---- v0.2 多引擎(从 RunManifest 派生,报告/对比页用)----
+    surface_kind: str = "answer"  # search_only 时提及类指标不适用,报告如实标注
+    cost_usd_actual: float | None = None  # 本表面真实花费(账单)
 
 
 class RunLock(BaseModel):

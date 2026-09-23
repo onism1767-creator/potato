@@ -34,10 +34,23 @@ _TIER_BASIS = {
 _TIER_BASIS_MIXED = "verified-mixed"
 _TIER_BASIS_NONE = "verified-none"
 
-_ENGINE_NOTE = (
-    "本结果仅代表此引擎(represents this engine only):"
-    "Claude API web-search 可见度(代理测量),不是 AI 排名真相。"
+_SEARCH_ONLY_NOTE = (
+    "此表面为纯搜索结果列表、无生成回答:提及类指标不适用(恒为 0),"
+    "引用类指标 = 结果链接(pure search results, no generated answer)。"
 )
+
+
+def _engine_note(manifest: RunManifest) -> str:
+    """叙事红线(CLAUDE.md §0):每份结果必须标注 surface_id 与"仅代表此引擎"。"""
+    note = (
+        "本结果仅代表此引擎(represents this engine only):"
+        f"{manifest.provider} / {manifest.surface_id} / {manifest.model} "
+        "web-search 可见度(代理测量),不是 AI 排名真相。"
+    )
+    if manifest.surface_kind == "search_only":
+        note += " " + _SEARCH_ONLY_NOTE
+    return note
+
 
 _INSUFFICIENT = Interval(point=0.0, low=0.0, high=1.0, n=0, method="insufficient")
 
@@ -266,11 +279,13 @@ def score(
         n_responses_ok=n_ok,
         n_responses_error=n_error,
         generated_at=generated_at,
-        engine_note=_ENGINE_NOTE,
+        engine_note=_engine_note(manifest),
         brands=tuple(metrics),
         tiers=tuple(tiers),
         evidence=used_evidence,
         health=health,
+        surface_kind=manifest.surface_kind,
+        cost_usd_actual=manifest.cost_usd_actual,
     )
 
 

@@ -4,7 +4,14 @@
 本包不依赖 aivis 的任何上层模块(由 import-linter 保证)。
 """
 
-from aivis.contracts.adapter import ProviderAdapter
+from aivis.contracts.adapter import (
+    ModelInfo,
+    ModelStatus,
+    ProviderAdapter,
+    ProviderInfo,
+    SurfaceKind,
+    SurfaceSpec,
+)
 from aivis.contracts.checker import CheckOutcome, UrlChecker
 from aivis.contracts.config import (
     Brand,
@@ -51,13 +58,18 @@ __all__ = [
     "Interval",
     "Light",
     "Metrics",
+    "ModelInfo",
+    "ModelStatus",
     "OwnedOrEarned",
     "ProviderAdapter",
+    "ProviderInfo",
     "Question",
     "RawResponse",
     "ResponseRef",
     "RunManifest",
     "ScoreBundle",
+    "SurfaceKind",
+    "SurfaceSpec",
     "Tier",
     "TierAssignment",
     "Track",

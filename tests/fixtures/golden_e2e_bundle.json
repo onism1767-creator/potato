@@ -14,7 +14,7 @@
   "n_responses_ok": 72,
   "n_responses_error": 0,
   "generated_at": "2026-06-10T00:00:00Z",
-  "engine_note": "本结果仅代表此引擎(represents this engine only):Claude API web-search 可见度(代理测量),不是 AI 排名真相。",
+  "engine_note": "本结果仅代表此引擎(represents this engine only):mock / mock_api_web_search / mock-model-standard web-search 可见度(代理测量),不是 AI 排名真相。",
   "brands": [
     {
       "brand": "Osprey",
@@ -2637,5 +2637,7 @@
     "flags": [
       "all-intervals-overlap:ranking-indicative-only"
     ]
-  }
+  },
+  "surface_kind": "answer",
+  "cost_usd_actual": 0.0
 }

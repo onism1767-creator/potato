@@ -15,10 +15,27 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from aivis.contracts.adapter import ModelInfo, ProviderInfo
 from aivis.contracts.config import Brand, FrozenConfig, Question
 from aivis.contracts.records import Citation, ErrorCode, RawResponse
 
 _MOCK_TIMESTAMP = "2026-01-01T00:00:00Z"
+
+PROVIDER_INFO = ProviderInfo(
+    name="mock", label="Mock (free demo)", env_key="", endpoint="(none: nothing is sent anywhere)"
+)
+# mock 的"模型目录":三档假模型,零成本;model id = mock-model-<tier>(与历史黄金一致)
+MODELS: tuple[ModelInfo, ...] = tuple(
+    ModelInfo(
+        provider="mock",
+        model=f"mock-model-{tier}",
+        label=f"Mock {tier}",
+        tier=tier,
+        blurb="Deterministic built-in sample data. $0, no key, nothing sent to any API.",
+    )
+    for tier in ("economy", "standard", "high")
+)
+_TIER_OF_MODEL = {m.model: m.tier for m in MODELS}
 
 
 class _FixtureRun(BaseModel):
@@ -43,8 +60,14 @@ class _Fixture(BaseModel):
 class MockAdapter:
     """确定性假引擎(实现 contracts.adapter.ProviderAdapter)。"""
 
-    def __init__(self, tier: str = "standard", fixture_dir: Path | None = None) -> None:
+    def __init__(
+        self, tier: str = "standard", fixture_dir: Path | None = None, *, model: str | None = None
+    ) -> None:
+        # model(精确 id)优先于 tier;未知 id 也接受(mock 不挑模型),tier 从 id 反推或沿用
+        if model is not None:
+            tier = _TIER_OF_MODEL.get(model, tier)
         self._tier = tier
+        self._model = model if model is not None else f"mock-model-{tier}"
         self._fixture_dir = fixture_dir
 
     @property
@@ -57,7 +80,16 @@ class MockAdapter:
 
     @property
     def model_name(self) -> str:
-        return f"mock-model-{self._tier}"
+        return self._model
+
+    @property
+    def info(self) -> ModelInfo:
+        for m in MODELS:
+            if m.model == self._model:
+                return m
+        return ModelInfo(
+            provider="mock", model=self._model, label=self._model, tier=self._tier, blurb="mock"
+        )
 
     @property
     def tool_path(self) -> str:

@@ -144,6 +144,7 @@ def run_probe(
                 progress(done_calls, total_calls, spent)
 
     total_search = sum(r.search_count for r in raw_store.read_responses(rid))
+    info = adapter.info
     manifest = RunManifest(
         run_id=rid,
         provider=adapter.provider_name,
@@ -163,6 +164,11 @@ def run_probe(
         timestamp=now(),
         search_count=total_search,
         config_fingerprint=cfg.fingerprint(),
+        # v0.2 诚实字段:温度/区域是否真的传给了引擎、表面类型、真实累计花费(账单)
+        temperature_applied=info.supports_temperature,
+        region_applied=info.supports_region and bool(cfg.region),
+        surface_kind=info.surface_kind,
+        cost_usd_actual=round(spent, 6),
     )
     raw_store.append_manifest(manifest)
     return manifest

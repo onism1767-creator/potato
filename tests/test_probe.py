@@ -312,3 +312,21 @@ def test_probe_writes_complete_manifest(demo_cfg: FrozenConfig, tmp_path: Path) 
     assert len(responses) == len(demo_cfg.questions) * demo_cfg.n_runs
     assert all(isinstance(r, RawResponse) for r in responses)
     assert isinstance(demo_cfg.questions[0], Question)
+
+
+def test_manifest_records_v02_honesty_fields(demo_cfg: FrozenConfig, tmp_path: Path) -> None:
+    """清单如实记录:温度/区域是否生效、表面类型、真实花费(mock 恒 0)。"""
+    raw = RawStore(tmp_path / "raw")
+    manifest = run_probe(
+        MockAdapter(), demo_cfg, raw, run_id="m", now=lambda: "2026-01-01T00:00:00Z"
+    )
+    assert manifest.temperature_applied is True and manifest.region_applied is True
+    assert manifest.surface_kind == "answer" and manifest.cost_usd_actual == 0.0
+
+
+def test_mock_adapter_accepts_explicit_model() -> None:
+    """显式 model 优先于 tier;目录内 id 反推 tier,未知 id 也接受(mock 不挑模型)。"""
+    a = MockAdapter(model="mock-model-high")
+    assert a.model_name == "mock-model-high" and a.info.tier == "high"
+    b = MockAdapter(tier="economy")
+    assert b.model_name == "mock-model-economy" and b.info.provider == "mock"
