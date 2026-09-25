@@ -231,6 +231,7 @@ MODELS: tuple[ModelInfo, ...] = (
         "Pure web search results (title/url/snippet), no generated answer: mention "
         "metrics do not apply; citation metrics = result links.",
         surface_kind="search_only",
+        supports_temperature=False,  # 纯搜索接口无采样参数
     ),
 )
 

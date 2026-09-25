@@ -35,4 +35,10 @@ def make_adapter(spec: SurfaceSpec, *, tier: str = "standard") -> ProviderAdapte
         from aivis.providers.gemini import GeminiAdapter
 
         return GeminiAdapter(model=info.model)
+    if info.provider == "perplexity":
+        from aivis.providers.perplexity import PerplexityAdapter, PerplexitySearchAdapter
+
+        if info.surface_kind == "search_only":
+            return PerplexitySearchAdapter()
+        return PerplexityAdapter(model=info.model)
     raise NotImplementedError(f"引擎 {info.provider!r} 的适配器尚未接入")
