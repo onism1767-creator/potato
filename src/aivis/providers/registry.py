@@ -31,4 +31,8 @@ def make_adapter(spec: SurfaceSpec, *, tier: str = "standard") -> ProviderAdapte
         from aivis.providers.openai import OpenAIAdapter
 
         return OpenAIAdapter(model=info.model)
+    if info.provider == "gemini":
+        from aivis.providers.gemini import GeminiAdapter
+
+        return GeminiAdapter(model=info.model)
     raise NotImplementedError(f"引擎 {info.provider!r} 的适配器尚未接入")
