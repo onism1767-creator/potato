@@ -60,10 +60,10 @@ def test_status_idle_before_start() -> None:
 
 
 def test_run_command_uses_python_module(tmp_path: Path) -> None:
-    # 子进程:python -m aivis.cli ... --tier T ... run --yes(便携包里 sys.executable=官方 python)
+    # 子进程:python -m aivis.cli ... --surfaces S ... run --yes(便携包里 sys.executable=官方 python)
     cmd = _run_command(
-        config_dir=tmp_path / "c", data_dir=tmp_path / "d", provider="mock", tier="economy"
+        config_dir=tmp_path / "c", data_dir=tmp_path / "d", surfaces=["mock:mock-model-economy"]
     )
     assert cmd[1:3] == ["-m", "aivis.cli"]
-    assert cmd[-2:] == ["run", "--yes"] and "mock" in cmd
-    assert "--tier" in cmd and cmd[cmd.index("--tier") + 1] == "economy"  # GUI 选档传到子进程
+    assert cmd[-2:] == ["run", "--yes"]
+    assert cmd[cmd.index("--surfaces") + 1] == "mock:mock-model-economy"  # GUI 选的表面传到子进程

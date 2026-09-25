@@ -18,6 +18,7 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import parse_qs, urlparse
 
 from aivis.gui import api
 from aivis.gui import runner as runner_mod
@@ -32,7 +33,8 @@ _POST_ENDPOINTS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "/api/draft": api.draft,
     "/api/validate": api.validate,
     "/api/estimate": api.estimate,
-    "/api/tiers": api.tiers,  # 三档 run 成本总览
+    "/api/tiers": api.tiers,  # 三档 run 成本总览(旧接口,保留)
+    "/api/models": api.models,  # 四家全部表面 + 预估("选测哪些 AI")
     "/api/draft_estimate": api.draft_estimate,  # AI 起草这一步的成本上界
 }
 
@@ -85,11 +87,19 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(403, {"error": "bad or missing token"})
             else:
                 self._json(200, self._gui.runner.status())
-        elif self.path == "/report":  # 看本次 run 的 report.html(token 守卫)
+        elif self.path.split("?", 1)[0] == "/report":  # 看报告(token 守卫;?surface=N 看第 N 个表面)
             if not self._token_ok():
                 self._json(403, {"error": "bad or missing token"})
                 return
-            rp = self._gui.runner.status().get("report_path")
+            st = self._gui.runner.status()
+            query = parse_qs(urlparse(self.path).query)
+            rp = st.get("report_path")
+            if "surface" in query:
+                paths = st.get("report_paths") or []
+                try:
+                    rp = paths[int(query["surface"][0])]
+                except (ValueError, IndexError):
+                    rp = None
             if not rp or not Path(rp).exists():
                 self._send(404, "text/plain; charset=utf-8", b"no report yet")
             else:

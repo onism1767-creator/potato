@@ -8,7 +8,9 @@
 from typing import Any, cast
 
 from aivis.configcheck import has_errors, validate_config
+from aivis.contracts.adapter import SurfaceSpec
 from aivis.contracts.config import Brand, FrozenConfig, Intent, Question
+from aivis.providers import catalog, registry
 from aivis.providers.anthropic import TIER_INFO, AnthropicAdapter, estimate_draft_cost_usd
 from aivis.providers.drafter import AnthropicTextSender, TextSender, draft_all
 from aivis.providers.mock import MockAdapter
@@ -154,6 +156,50 @@ def estimate(payload: dict[str, Any]) -> dict[str, Any]:
         "budget_cap_usd": cfg.budget_cap_usd,
         "over_budget": est > cfg.budget_cap_usd,
     }
+
+
+def models(payload: dict[str, Any]) -> dict[str, Any]:
+    """全部可测表面(四家真引擎,按目录顺序)+ 按当前配置的预估(离线、不花钱)。
+
+    GUI"选测哪些 AI"的数据源:每个模型带 label / blurb / status / 诚实标记 / 预估 / 是否超预算;
+    每家带密钥环境变量名与唯一发往的主机(隐私文案如实列出)。
+    """
+    cfg = _config_from(payload, _questions_from(payload))
+    n_calls = len(cfg.questions) * cfg.n_runs
+    providers: list[dict[str, Any]] = []
+    for name, pinfo in catalog.PROVIDERS.items():
+        if name == "mock":
+            continue
+        entries: list[dict[str, Any]] = []
+        for m in catalog.list_models(name):
+            adapter = registry.make_adapter(SurfaceSpec(provider=name, model=m.model))
+            est = adapter.estimate_cost_usd(n_calls, cfg)
+            entries.append(
+                {
+                    "key": m.key,
+                    "model": m.model,
+                    "label": m.label,
+                    "tier": m.tier,
+                    "blurb": m.blurb,
+                    "status": m.status,
+                    "supports_temperature": m.supports_temperature,
+                    "supports_region": m.supports_region,
+                    "pinned": m.pinned,
+                    "surface_kind": m.surface_kind,
+                    "est_usd": round(est, 2),
+                    "over_budget": est > cfg.budget_cap_usd,
+                }
+            )
+        providers.append(
+            {
+                "name": name,
+                "label": pinfo.label,
+                "env_key": pinfo.env_key,
+                "endpoint": pinfo.endpoint,
+                "models": entries,
+            }
+        )
+    return {"n_calls": n_calls, "budget_cap_usd": cfg.budget_cap_usd, "providers": providers}
 
 
 def tiers(payload: dict[str, Any]) -> dict[str, Any]:

@@ -115,6 +115,11 @@
   .tier .te.over{color:#C0392B;}
   .tier .tm{font-size:11px;color:#6E8A3E;}
   .tier .tb{font-size:12.5px;color:#5C6555;margin-top:3px;}
+  .prov{margin:10px 0 16px;padding:10px 12px;border:1px solid #E3ECD9;border-radius:14px;background:#FBFDF8;}
+  .prov .ph{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:2px 0 8px;}
+  .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;}
+  .keyrow{margin-top:8px;}
+  .bill{font-size:12.5px;color:#4A6B23;margin-top:6px;line-height:1.6;}
   .total{font-size:13px;font-weight:600;color:#3C6E0F;margin-top:10px;}
   /* 运行进度条:活动文字 + 右侧 ETA + 进度条 + 下方明细 */
   .prog{margin-top:16px;}
@@ -228,21 +233,20 @@
     <div class="radio">
       <label><input type="radio" name="prov" value="mock" checked onchange="provChange()"/>
         <span data-i18n="s3_mock">模拟(免费演示)</span></label>
-      <label><input type="radio" name="prov" value="anthropic" onchange="provChange()"/>
-        <span data-i18n="s3_real">Anthropic(真实 · ~$7 · ~25 分钟)</span></label>
+      <label><input type="radio" name="prov" value="real" onchange="provChange()"/>
+        <span data-i18n="s3_real">真实测量(选择要测的 AI)</span></label>
     </div>
-    <div id="mock_note" class="note" data-i18n-html="s3_mock_note">第一次用?先选 <b>Mock</b>。<b>Mock(免费演示)</b>用内置示例数据把整条流程跑一遍——<b>不需要 API key、$0、不向 Claude 发送任何东西</b>。它是最快看清“最终报告长什么样、测哪些指标”(提及覆盖率、引用有效性、声量份额、逐题在场矩阵……)的方式。直接点下面的 <b>开始测量</b>,跑完点 <b>打开报告</b> 即可。准备好测你自己的品牌时,再切到 <b>Anthropic(真实)</b>——那才会真的去问 Claude、要花钱。</div>
-    <div id="anthropic_box" class="hide">
-      <div class="trust mini" data-i18n-html="s3_key_mini">你的 key <b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不存盘、绝不记日志</b>,只发往 <b>api.anthropic.com</b>(你自己的账户)。</div>
+    <div id="mock_note" class="note" data-i18n-html="s3_mock_note"></div>
+    <div id="real_box" class="hide">
+      <div class="trust mini" data-i18n-html="s3_key_mini"></div>
       <div class="row2">
-        <div><label data-i18n="s3_key">API key(仅内存;发给这次本地运行,绝不保存)</label>
-          <input type="password" id="api_key" placeholder="sk-ant-..."/></div>
-        <div><label data-i18n="s3_budget">预算上限(美元)</label>
-          <input type="text" id="budget" value="13" oninput="loadTiers()"/></div>
+        <div><label data-i18n="s3_budget">预算上限(美元;每个 AI 各自受限)</label>
+          <input type="text" id="budget" value="13" oninput="loadModels()"/></div>
+        <div><label data-i18n="s3_pick_hint">怎么选</label>
+          <div class="note" data-i18n="s3_pick_note"></div></div>
       </div>
-      <label data-i18n="s3_tier">模型档位——在质量与成本间选(估算针对你当前的题目)</label>
-      <div id="tiers"></div>
-      <div class="note" data-i18n="s3_tier_note">档位越高,推理与准确度越好、成本越高;三档的测量方式相同。运行会按你的预算硬封顶——若估算显示红色,会在超支前被拦下。</div>
+      <label data-i18n="s3_pick">选择要测的 AI(可多选;估算针对你当前的题目)</label>
+      <div id="models"></div>
       <div id="total" class="total"></div>
     </div>
     <label class="check"><input type="checkbox" id="sequential"/>
@@ -265,19 +269,21 @@
 const TOKEN = document.querySelector('meta[name=aivis-token]').content;
 let QUESTIONS = [];
 let DRAFT_EST = 0;       // AI 起草这一步的预估(免费档=0),用于合并总额
-let TIER_EST = {};       // 各 run 档位预估 id→$
+let MODELS = null;       // /api/models 返回的目录(四家 + 预估)
+let SELECTED = new Set();// 已勾选的表面 key(provider:model)
+let KEYS = {};           // 各家 key(仅内存;随 /api/run 发给本机服务)
 const $ = (id) => document.getElementById(id);
 const v = (id) => $(id).value.trim();
 
 // ── i18n:语言字典 + 切换 ────────────────────────────────────────────────
 const I18N = {
-  subtitle:{zh:'测量 Claude 联网回答里提及与引用你品牌的频率', en:'Measure how often Claude mentions & cites your brand'},
+  subtitle:{zh:'测量 AI 联网回答里提及与引用你品牌的频率(Claude · ChatGPT · Gemini · Perplexity)', en:'Measure how often AI web-search answers mention & cite your brand (Claude · ChatGPT · Gemini · Perplexity)'},
   tab1:{zh:'1 · 品牌', en:'1 · Brand'},
   tab2:{zh:'2 · 起草与审核', en:'2 · Draft & review'},
   tab3:{zh:'3 · 运行与报告', en:'3 · Run & report'},
   s0_ph:{zh:'关于本工具', en:'About this tool'},
-  s0_sub:{zh:'它测量一个品牌在 Claude 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。',
-    en:"It measures how often a brand shows up — <b>mentioned</b> and <b>cited</b> — in Claude's web-search answers, and turns that into a report you can trust and repeat."},
+  s0_sub:{zh:'它测量一个品牌在 AI 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。支持 Claude、ChatGPT(OpenAI)、Gemini 和 Perplexity,每个引擎单独出报告、并列对比、不混总分。',
+    en:"It measures how often a brand shows up — <b>mentioned</b> and <b>cited</b> — in AI web-search answers, and turns that into a report you can trust and repeat. Supports Claude, ChatGPT (OpenAI), Gemini and Perplexity: one report per engine, compared side by side, never blended into one score."},
   s0_how:{zh:'工作原理', en:'How it works'},
   s0_how1:{zh:'<b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 Claude 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。',
     en:'<b>24 fixed questions, in a fixed 8 / 6 / 6 / 4 mix</b> — 8 discovery ("what\'s best for…"), 6 comparison ("how do brands compare on…"), 6 local/scenario, and 4 brand-defense. The first 20 <b>never name any brand</b>, so the test can\'t nudge Claude toward you — only the 4 defense questions name your brand on purpose. Keeping the set and the mix fixed is what makes runs <b>comparable and repeatable</b> instead of drifting every time.'},
@@ -329,18 +335,18 @@ const I18N = {
   s3_notice_h:{zh:'全程在你自己的电脑上运行,不上传任何数据。', en:'Everything runs on your own computer. Nothing is uploaded.'},
   s3_notice1:{zh:'<b>100% 本地。</b>程序在你机器的 <b>127.0.0.1</b> 上运行——回路里没有我们的任何服务器。它开源(MIT),你能读每一行;报告里的<b>“网络去向”</b>面板会显示这次运行到底连了哪里。',
     en:'<b>100% local.</b> The app runs at <b>127.0.0.1</b> on your machine — there is no server of ours in the loop. It\'s open-source (MIT), so you can read every line, and the report\'s <b>"network destinations"</b> panel shows exactly where the run connected.'},
-  s3_notice2:{zh:'<b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——只发往 <b>api.anthropic.com</b>(你自己的账户)。',
-    en:'<b>Your API key is safe.</b> Held <b>in memory only</b>, passed to the local run through an environment variable — <b>never written to disk, never logged, never put on a command line</b> — and sent only to <b>api.anthropic.com</b> (your own account).'},
-  s3_notice3:{zh:'<b>作者零收益——本工具免费。</b>你花的任何钱都给 <b>Anthropic</b> 用来跑 Claude,付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 Anthropic API key,由 Anthropic 直接向你计费。',
-    en:'<b>The author earns nothing — this tool is free.</b> Any money you spend goes to <b>Anthropic</b> to run Claude; it pays for the AI itself. <b>You are not paying the author.</b> You bring your own Anthropic API key and Anthropic bills you directly.'},
-  s3_mock_note:{zh:'第一次用?先选 <b>Mock</b>。<b>Mock(免费演示)</b>用内置示例数据把整条流程跑一遍——<b>不需要 API key、$0、不向 Claude 发送任何东西</b>。它是最快看清“最终报告长什么样、测哪些指标”(提及覆盖率、引用有效性、声量份额、逐题在场矩阵……)的方式。直接点下面的 <b>开始测量</b>,跑完点 <b>打开报告</b> 即可。准备好测你自己的品牌时,再切到 <b>Anthropic(真实)</b>——那才会真的去问 Claude、要花钱。',
-    en:'New here? Start with <b>Mock</b>. <b>Mock (free demo)</b> runs the whole pipeline on built-in sample data — <b>no API key, $0, nothing is sent to Claude</b>. It\'s the fastest way to see what the final report looks like and which metrics it measures (mention coverage, citation validity, share of voice, the per-question presence matrix, …). Just click <b>Start measurement</b> below, then <b>Open report</b> when it finishes. When you\'re ready to test your own brand, switch to <b>Anthropic (real)</b> — that actually asks Claude and costs money.'},
+  s3_notice2:{zh:'<b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——每家的 key 只发往那一家自己的接口(下方逐家列出),别处都不去。',
+    en:'<b>Your API keys are safe.</b> Held <b>in memory only</b>, passed to the local run through environment variables — <b>never written to disk, never logged, never put on a command line</b> — and each key is sent only to that provider\'s own API (listed per provider below), nowhere else.'},
+  s3_notice3:{zh:'<b>作者零收益——本工具免费。</b>你花的任何钱都直接付给你选的 AI 提供商(Anthropic / OpenAI / Google / Perplexity),付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 API key,由各家直接向你计费。',
+    en:'<b>The author earns nothing — this tool is free.</b> Any money you spend goes directly to the AI providers you pick (Anthropic / OpenAI / Google / Perplexity); it pays for the AI itself. <b>You are not paying the author.</b> You bring your own API keys and each provider bills you directly.'},
+  s3_mock_note:{zh:'第一次用?先选 <b>Mock</b>。<b>Mock(免费演示)</b>用内置示例数据把整条流程跑一遍——<b>不需要 API key、$0、不向任何 AI 发送东西</b>。它是最快看清“最终报告长什么样、测哪些指标”(提及覆盖率、引用有效性、声量份额、逐题在场矩阵……)的方式。直接点下面的 <b>开始测量</b>,跑完点 <b>打开报告</b> 即可。准备好测你自己的品牌时,再切到 <b>真实测量</b>——选要测的 AI,那才会真的去问、要花钱。',
+    en:'New here? Start with <b>Mock</b>. <b>Mock (free demo)</b> runs the whole pipeline on built-in sample data — <b>no API key, $0, nothing is sent to any AI</b>. It\'s the fastest way to see what the final report looks like and which metrics it measures (mention coverage, citation validity, share of voice, the per-question presence matrix, …). Just click <b>Start measurement</b> below, then <b>Open report</b> when it finishes. When you\'re ready to test your own brand, switch to <b>Real measurement</b>, pick the AIs to test — that actually asks them and costs money.'},
   s3_mock:{zh:'模拟(免费演示)', en:'Mock (free demo)'},
-  s3_real:{zh:'Anthropic(真实 · ~$7 · ~25 分钟)', en:'Anthropic (real · ~$7 · ~25 min)'},
-  s3_key_mini:{zh:'你的 key <b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不存盘、绝不记日志</b>,只发往 <b>api.anthropic.com</b>(你自己的账户)。',
-    en:'Your key is held <b>in memory only</b> and handed to the local run through an environment variable — <b>never saved to disk, never logged</b>, and sent only to <b>api.anthropic.com</b> (your own account).'},
+  s3_real:{zh:'真实测量(选择要测的 AI · 花钱)', en:'Real measurement (pick the AIs to test · costs money)'},
+  s3_key_mini:{zh:'每家的 key <b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不存盘、绝不记日志</b>,只发往那一家自己的接口(每家卡片上写明)。',
+    en:'Each key is held <b>in memory only</b> and handed to the local run through an environment variable — <b>never saved to disk, never logged</b>, and sent only to that provider\'s own API (shown on each card).'},
   s3_key:{zh:'API key(仅内存;发给这次本地运行,绝不保存)', en:'API key (memory only; sent to this local run, never saved)'},
-  s3_budget:{zh:'预算上限(美元)', en:'Budget cap (USD)'},
+  s3_budget:{zh:'预算上限(美元;每个 AI 各自受限)', en:'Budget cap (USD; applies to each AI separately)'},
   s3_tier:{zh:'模型档位——在质量与成本间选(估算针对你当前的题目)', en:'Model tier — pick quality vs cost (estimates are for your current questions)'},
   s3_tier_note:{zh:'档位越高,推理与准确度越好、成本越高;三档的测量方式相同。运行会按你的预算硬封顶——若估算显示红色,会在超支前被拦下。',
     en:'Higher tiers mean better reasoning & accuracy at higher cost; all three measure the same way. The run is hard-capped at your budget — if an estimate shows red it will be blocked before overspending.'},
@@ -350,7 +356,7 @@ const I18N = {
   s3_start:{zh:'开始测量', en:'Start measurement'},
   // 运行进度:活动文字(按阶段)
   act_starting:{zh:'正在启动…', en:'Starting…'},
-  act_probe:{zh:'正在向 Claude 提问并联网搜索(最耗时的一步)…', en:'Asking Claude & running web search (the longest step)…'},
+  act_probe:{zh:'正在向 AI 提问并联网搜索(最耗时的一步)…', en:'Asking the AI & running web search (the longest step)…'},
   act_extract:{zh:'解析回答、统计品牌提及…', en:'Parsing answers & counting brand mentions…'},
   act_verify:{zh:'核验被引用的网页…', en:'Verifying the cited web pages…'},
   act_score:{zh:'计算指标与不确定区间…', en:'Computing metrics & uncertainty ranges…'},
@@ -362,7 +368,7 @@ const I18N = {
   prog_calls:{zh:' · 已问 {d}/{t} 次', en:' · {d}/{t} calls'},
   prog_cost:{zh:' · 已花 ${c}', en:' · spent ${c}'},
   cost_mock:{zh:'(免费 mock 演示,$0,没有真实调用)', en:'(free mock demo · $0 · no real calls)'},
-  cost_real:{zh:'(实际花费 ${c},已按你的预算上限硬封顶;明细见报告)', en:'(actual cost ${c}, hard-capped at your budget; details in the report)'},
+  cost_real:{zh:'(实际花费合计 ${c},每个 AI 已按你的预算上限硬封顶;明细见账单与报告)', en:'(actual cost ${c} in total, each AI hard-capped at your budget; details in the bill and reports)'},
   // 动态消息
   b_discovery:{zh:'发现', en:'Discovery'},
   b_comparison:{zh:'比较', en:'Comparison'},
@@ -382,7 +388,7 @@ const I18N = {
   draft_ok_post:{zh:'。可自由审核/编辑,然后点检查。', en:'. Review/edit freely, then Check.'},
   draft_ok_free:{zh:'已起草 24 道问题。可自由编辑,然后点检查。', en:'Drafted 24 questions. Edit freely, then Check.'},
   val_clean:{zh:'通过——没有问题。', en:'Clean — no issues.'},
-  tiers_need:{zh:'请先在第 2 步起草问题,才能看到各档估算。', en:'Draft questions in Step 2 first to see per-tier estimates.'},
+  tiers_need:{zh:'请先在第 2 步起草问题,才能看到各 AI 的估算。', en:'Draft questions in Step 2 first to see per-AI estimates.'},
   est_failed:{zh:'估算失败', en:'estimate failed'},
   tier_over:{zh:' · 超预算', en:' · over budget'},
   over_blocked:{zh:' — 超预算,将被拦下', en:' — OVER BUDGET, will be blocked'},
@@ -390,6 +396,25 @@ const I18N = {
   stage_label:{zh:' · 阶段:', en:' · stage: '},
   done_pre:{zh:'完成。', en:'Done. '},
   btn_open:{zh:'打开报告', en:'Open report'},
+  btn_open_compare:{zh:'打开并列对比', en:'Open side-by-side comparison'},
+  s3_pick:{zh:'选择要测的 AI(可多选;估算针对你当前的题目)', en:'Pick the AIs to test (multi-select; estimates are for your current questions)'},
+  s3_pick_hint:{zh:'怎么选', en:'How to pick'},
+  s3_pick_note:{zh:'每个选中的 AI 独立跑一遍、独立出报告,最后一页并列对比——只并列、不混总分。标记说明:“不接受温度”= 该模型拒绝采样参数;“无区域参数”= 该接口钉不住区域;“底层会变”= 官方预设档,底层模型自动更新、不可钉死;“纯搜索”= 只返回搜索结果、无回答文本,提及类指标不适用。', en:'Each selected AI runs separately with its own report, plus a side-by-side comparison page — placed next to each other, never blended into one score. Flags: “no temperature” = the model rejects sampling params; “no region” = the API cannot pin a region; “underlying model changes” = an official preset whose underlying model auto-updates; “search only” = returns search results with no generated answer, so mention metrics do not apply.'},
+  m_key_to:{zh:'key 只发往', en:'key goes only to'},
+  m_key_label:{zh:'API key(仅内存;绝不保存)', en:'API key (memory only; never saved)'},
+  m_legacy:{zh:'官方已下架', en:'legacy'},
+  m_preview:{zh:'预览版', en:'preview'},
+  m_notemp:{zh:'不接受温度', en:'no temperature'},
+  m_noregion:{zh:'无区域参数', en:'no region'},
+  m_unpinned:{zh:'底层会变', en:'underlying model changes'},
+  m_searchonly:{zh:'纯搜索', en:'search only'},
+  sel_none:{zh:'还没选任何 AI——在上面勾选至少一个。', en:'No AI selected yet — tick at least one above.'},
+  sel_total:{zh:'已选 {n} 个 AI · 合计预估 ≈ ${c}', en:'{n} AI selected · total estimate ≈ ${c}'},
+  sel_draft:{zh:' · 含 AI 起草共 ≈ ${c}', en:' · incl. AI drafting ≈ ${c} total'},
+  act_surface:{zh:'AI {i}/{n}:{s} · ', en:'AI {i}/{n}: {s} · '},
+  bill_label:{zh:'账单:', en:'Bill:'},
+  bill_total:{zh:'合计', en:'total'},
+  key_missing:{zh:'请为已选引擎填写 API key:{p}', en:'Please enter the API key for: {p}'},
 };
 let LANG = localStorage.getItem('aivis_lang') || 'zh';
 function t(k){ const e = I18N[k]; return e ? (e[LANG] ?? e.en ?? k) : k; }
@@ -405,7 +430,7 @@ function setLang(l){
   $('langbtn').textContent = (l==='zh' ? 'English' : '中文');
   if(DRAFT_EST>0 && $('draftest')) $('draftest').textContent = '≈ $'+DRAFT_EST.toFixed(2);
   if(QUESTIONS.length) renderGrid();
-  if(!$('anthropic_box').classList.contains('hide')) loadTiers();
+  if(!$('real_box').classList.contains('hide')) loadModels();
 }
 function toggleLang(){ setLang(LANG==='zh' ? 'en' : 'zh'); }
 
@@ -427,10 +452,10 @@ function nextFromStep1(){
   m.textContent = ''; go(2);
 }
 function provChange(){
-  const a = document.querySelector('input[name=prov]:checked').value === 'anthropic';
-  $('anthropic_box').classList.toggle('hide', !a);
+  const a = document.querySelector('input[name=prov]:checked').value === 'real';
+  $('real_box').classList.toggle('hide', !a);
   $('mock_note').classList.toggle('hide', a);  // Mock 引导:选真实档时让位给成本说明
-  if(a) loadTiers();
+  if(a) loadModels();
 }
 async function dtierChange(){
   const ai = document.querySelector('input[name=dtier]:checked').value === 'ai';
@@ -441,7 +466,7 @@ async function dtierChange(){
       if($('draftest')) $('draftest').textContent = '≈ $'+DRAFT_EST.toFixed(2); }
   } else { DRAFT_EST = 0; }
 }
-function syncKey(){ $('api_key').value = v('draft_api_key'); }  // 单一输入源:起草 key 自动用于 Step 3
+function syncKey(){ KEYS.anthropic = v('draft_api_key'); const el = $('key_anthropic'); if(el) el.value = KEYS.anthropic; }  // 单一输入源:起草 key 自动用于 Step 3 的 Claude
 function inputs(){
   const comps = v('competitors').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
     const [name, domain] = l.split(',').map(s=>s.trim());
@@ -586,50 +611,86 @@ async function doEstimate(){
   $('emsg').textContent = core + (d.over_budget ? t('over_blocked') : '');
 }
 function budget(){ const b = parseFloat(v('budget')); return isNaN(b) ? 13 : b; }
-let RUN_TIER = 'standard';
-async function loadTiers(){  // 三档 run 成本总览(需先在 Step2 起草出题目)
-  if(!QUESTIONS.length){ $('tiers').innerHTML =
+async function loadModels(){  // 四家全部表面 + 预估(需先在 Step2 起草出题目)
+  if(!QUESTIONS.length){ $('models').innerHTML =
     '<div class="note">'+t('tiers_need')+'</div>'; return; }
-  const res = await post('/api/tiers', {...inputs(), questions:QUESTIONS, budget_cap_usd:budget()});
-  if(res.status!==200){ $('tiers').innerHTML =
+  const res = await post('/api/models', {...inputs(), questions:QUESTIONS, budget_cap_usd:budget()});
+  if(res.status!==200){ $('models').innerHTML =
     '<div class="msg err">'+esc(res.data.error||t('est_failed'))+'</div>'; return; }
-  TIER_EST = {};
-  $('tiers').innerHTML = res.data.tiers.map(t2=>{
-    TIER_EST[t2.id] = t2.est_usd;
-    const sel = t2.id===RUN_TIER ? ' sel' : '';
-    const over = t2.over_budget ? ' over' : '';
-    const flag = t2.over_budget ? t('tier_over') : '';
-    return '<label class="tier'+sel+'" id="tier_'+t2.id+'" onclick="selectTier(\''+t2.id+'\')">'
-      + '<div class="th"><span class="tn"><input type="radio" name="rtier" value="'+t2.id+'"'
-      + (t2.id===RUN_TIER?' checked':'')+'/> '+esc(t2.label)+'</span>'
-      + '<span class="te'+over+'">≈ $'+t2.est_usd.toFixed(2)+flag+'</span></div>'
-      + '<div class="tm">'+esc(t2.model)+'</div><div class="tb">'+esc(t2.blurb)+'</div></label>';
-  }).join('');
-  updateTotal();
+  MODELS = res.data; renderModels();
 }
-function selectTier(id){
-  RUN_TIER = id;
-  document.querySelectorAll('.tier').forEach(el=>el.classList.toggle('sel', el.id==='tier_'+id));
-  const r = document.querySelector('input[name=rtier][value="'+id+'"]'); if(r) r.checked = true;
-  updateTotal();
+function modelFlags(m){
+  const f = [];
+  if(m.status==='legacy') f.push(t('m_legacy'));
+  if(m.status==='preview') f.push(t('m_preview'));
+  if(!m.supports_temperature) f.push(t('m_notemp'));
+  if(!m.supports_region) f.push(t('m_noregion'));
+  if(!m.pinned) f.push(t('m_unpinned'));
+  if(m.surface_kind==='search_only') f.push(t('m_searchonly'));
+  return f;
+}
+function renderModels(){
+  if(!MODELS) return;
+  let h = '';
+  for(const p of MODELS.providers){
+    const anySel = p.models.some(m=>SELECTED.has(m.key));
+    h += '<div class="prov"><div class="ph"><b>'+esc(p.label)+'</b>'
+      + '<span class="tm">'+t('m_key_to')+' <b>'+esc(p.endpoint)+'</b></span></div><div class="mgrid">';
+    for(const m of p.models){
+      const sel = SELECTED.has(m.key) ? ' sel' : '';
+      const over = m.over_budget ? ' over' : '';
+      const flags = modelFlags(m);
+      h += '<label class="tier'+sel+'" onclick="toggleModel(event,\''+esc(m.key)+'\')">'
+        + '<div class="th"><span class="tn"><input type="checkbox"'+(sel?' checked':'')+'/> '+esc(m.label)+'</span>'
+        + '<span class="te'+over+'">≈ $'+m.est_usd.toFixed(2)+(m.over_budget?t('tier_over'):'')+'</span></div>'
+        + '<div class="tm">'+esc(m.model)+(flags.length?' · '+esc(flags.join(' · ')):'')+'</div>'
+        + '<div class="tb">'+esc(m.blurb)+'</div></label>';
+    }
+    h += '</div><div class="keyrow'+(anySel?'':' hide')+'">'
+      + '<label>'+esc(p.label)+' · '+t('m_key_label')+'</label>'
+      + '<input type="password" id="key_'+esc(p.name)+'" placeholder="'+esc(p.env_key)+'" value="'+esc(KEYS[p.name]||'')+'"'
+      + ' oninput="KEYS[\''+esc(p.name)+'\']=this.value"/></div></div>';
+  }
+  $('models').innerHTML = h; updateTotal();
+}
+function toggleModel(ev, key){
+  ev.preventDefault();  // label 默认会切换 checkbox,统一由我们管
+  if(SELECTED.has(key)) SELECTED.delete(key); else SELECTED.add(key);
+  renderModels();
+}
+function chosenModels(){
+  const out = [];
+  if(MODELS) for(const p of MODELS.providers) for(const m of p.models) if(SELECTED.has(m.key)) out.push({...m, provider:p.name, plabel:p.label});
+  return out;
 }
 function updateTotal(){
-  const run = TIER_EST[RUN_TIER]; if(run===undefined){ $('total').textContent=''; return; }
-  let txt;
-  if(LANG==='zh'){
-    txt = '所选运行 ≈ $'+run.toFixed(2);
-    if(DRAFT_EST>0) txt += ' · 含 AI 起草共 ≈ $'+(run+DRAFT_EST).toFixed(2);
-  } else {
-    txt = 'Selected run ≈ $'+run.toFixed(2);
-    if(DRAFT_EST>0) txt += ' · incl. AI drafting ≈ $'+(run+DRAFT_EST).toFixed(2)+' total';
-  }
+  const chosen = chosenModels();
+  if(!chosen.length){ $('total').textContent = t('sel_none'); return; }
+  const run = chosen.reduce((a,m)=>a+m.est_usd, 0);
+  let txt = t('sel_total').replace('{n}', chosen.length).replace('{c}', run.toFixed(2));
+  txt += ' · ' + chosen.map(m=>m.label+' $'+m.est_usd.toFixed(2)).join(' · ');
+  if(DRAFT_EST>0) txt += t('sel_draft').replace('{c}', (run+DRAFT_EST).toFixed(2));
   $('total').textContent = txt;
 }
 async function doRun(){
   const prov = document.querySelector('input[name=prov]:checked').value;
   const body = {...inputs(), questions:QUESTIONS, provider:prov,
-    tier:RUN_TIER, sequential:$('sequential').checked, budget_cap_usd:budget()};
-  if(prov==='anthropic') body.api_key = v('api_key');
+    sequential:$('sequential').checked, budget_cap_usd:budget()};
+  if(prov==='real'){
+    const chosen = chosenModels();
+    if(!chosen.length){ $('runmsg').className='msg err'; $('runmsg').textContent=t('sel_none'); return; }
+    body.surfaces = chosen.map(m=>m.key);
+    body.api_keys = {};
+    const missing = [];
+    for(const p of MODELS.providers){
+      if(!p.models.some(m=>SELECTED.has(m.key))) continue;
+      const k = (KEYS[p.name]||'').trim();
+      if(!k) missing.push(p.label);
+      body.api_keys[p.name] = k;
+    }
+    if(missing.length){ $('runmsg').className='msg err';
+      $('runmsg').textContent = t('key_missing').replace('{p}', missing.join(', ')); return; }
+  }
   const res = await post('/api/run', body);
   if(res.status!==200){ $('runmsg').className='msg err';
     $('runmsg').textContent=res.data.error||JSON.stringify(res.data); return; }
@@ -654,22 +715,37 @@ function renderProgress(st){  // 画进度条 + 活动文字 + ETA + 明细
   const fill = $('prog-fill');
   if(pct < 1){ fill.classList.add('indet'); fill.style.width = ''; }   // 起步:走动画条示意"活着"
   else { fill.classList.remove('indet'); fill.style.width = pct+'%'; }
-  $('prog-act').textContent = t('act_'+(st.stage || 'starting'));
+  let act = t('act_'+(st.stage || 'starting'));
+  if(st.surface_total > 1) act = t('act_surface').replace('{i}', st.surface_index).replace('{n}', st.surface_total).replace('{s}', st.surface_label||'') + act;
+  $('prog-act').textContent = act;
   $('prog-eta').textContent = etaText(st.eta_s);
   let sub = t('prog_elapsed').replace('{e}', fmtDur(st.elapsed_s));
   if(st.total) sub += t('prog_calls').replace('{d}', st.done).replace('{t}', st.total);
-  if(st.provider==='anthropic') sub += t('prog_cost').replace('{c}', (st.spent_usd||0).toFixed(2));
+  if(st.provider!=='mock') sub += t('prog_cost').replace('{c}', (st.spent_total||0).toFixed(2));
   $('prog-sub').textContent = sub;
   $('runmsg').textContent = '';
 }
 function runDone(st){
   $('progress').classList.add('hide');
   $('runmsg').className = 'msg ok';
-  const cost = st.provider==='anthropic'
-    ? t('cost_real').replace('{c}', (st.spent_usd||0).toFixed(2))
+  const cost = st.provider!=='mock'
+    ? t('cost_real').replace('{c}', (st.spent_total||0).toFixed(2))
     : t('cost_mock');
-  $('runmsg').innerHTML = t('done_pre') + '<button onclick="openReport()">' + t('btn_open')
-    + '</button> <span class="cost">' + cost + '</span>';
+  const paths = st.report_paths || [];
+  let h = t('done_pre');
+  if(st.comparison_path) h += '<button onclick="openReport()">' + t('btn_open_compare') + '</button> ';
+  if(paths.length > 1 || st.comparison_path){
+    paths.forEach((p, i)=>{ const lbl = (st.surfaces && st.surfaces[i]) ? st.surfaces[i] : ('#'+(i+1));
+      h += '<button class="ghost" onclick="openReport('+i+')">' + t('btn_open') + ' · ' + esc(lbl) + '</button> '; });
+  } else {
+    h += '<button onclick="openReport()">' + t('btn_open') + '</button> ';
+  }
+  h += '<span class="cost">' + cost + '</span>';
+  if(st.bills && st.bills.length){
+    h += '<div class="bill">' + t('bill_label') + ' ' + st.bills.map(b=>esc(b.label)+' $'+b.cost.toFixed(4)).join(' · ')
+      + ' · ' + t('bill_total') + ' $' + (st.spent_total||0).toFixed(4) + '</div>';
+  }
+  $('runmsg').innerHTML = h;
 }
 function runError(st){
   $('progress').classList.add('hide');
@@ -683,8 +759,9 @@ async function poll(){
   if(st.state==='done'){ runDone(st); }
   else { runError(st); }
 }
-async function openReport(){
-  const r = await fetch('/report', {headers:{'X-Aivis-Token':TOKEN}});
+async function openReport(i){
+  const url = (i === undefined) ? '/report' : '/report?surface=' + i;
+  const r = await fetch(url, {headers:{'X-Aivis-Token':TOKEN}});
   const html = await r.text();
   const blob = new Blob([html], {type:'text/html'});
   window.open(URL.createObjectURL(blob), '_blank');

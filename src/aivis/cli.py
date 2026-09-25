@@ -233,6 +233,7 @@ def _cmd_report(run_id: str, cfg: FrozenConfig, analysis: AnalysisStore) -> None
     md_path = analysis.write_report_file(run_id, "report.md", render_markdown(bundle, cfg))
     csv_path = analysis.write_report_file(run_id, "metrics.csv", render_csv(bundle))
     html_path = analysis.write_report_file(run_id, "report.html", render_html(bundle, cfg))
+    print(f"REPORT {html_path}", flush=True)  # 机器可解析(GUI 据此列出各表面报告)
     print(f"report 完成: {md_path}\n           {csv_path}\n           {html_path}")
 
 
