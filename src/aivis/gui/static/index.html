@@ -138,7 +138,7 @@
 <body>
 <div class="wrap">
   <div class="titlebar">
-    <div><div>AI Visibility Easy Tool</div><small data-i18n="subtitle">测量 Claude 联网回答里提及与引用你品牌的频率</small></div>
+    <div><div>AI Visibility Easy Tool</div><small data-i18n="subtitle">测量 AI 联网回答里提及与引用你品牌的频率</small></div>
     <button id="langbtn" class="langbtn" onclick="toggleLang()">English</button>
   </div>
   <div class="steps">
@@ -151,12 +151,12 @@
   <div id="step0" class="panel">
     <span class="ph" data-i18n="s0_ph">关于本工具</span>
     <p class="sub" style="font-size:14px;color:#2B2A28;" data-i18n-html="s0_sub">
-      它测量一个品牌在 Claude 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。</p>
+      它测量一个品牌在 AI 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。</p>
 
     <div class="bucket" data-i18n="s0_how">工作原理</div>
     <ol class="howto">
-      <li data-i18n-html="s0_how1"><b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 Claude 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。</li>
-      <li data-i18n-html="s0_how2"><b>每道题会问多次</b>,因为 Claude 的回答每次都不一样——单次回答不可靠。它会一直问到冒出的品牌<b>不再变化</b>(稳定)为止,所以飘的题多采样、稳的题更省钱。</li>
+      <li data-i18n-html="s0_how1"><b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 AI 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。</li>
+      <li data-i18n-html="s0_how2"><b>每道题会问多次</b>,因为 AI 的回答每次都不一样——单次回答不可靠。它会一直问到冒出的品牌<b>不再变化</b>(稳定)为止,所以飘的题多采样、稳的题更省钱。</li>
       <li data-i18n-html="s0_how3"><b>用固定规则打分,不用 AI 当裁判。</b>只有清晰的品牌名才计入(保守计数)。证据分三档——<b>已提及 → 被引用 → 已核实</b>——只有<i>已核实</i>(被引用的页面可访问且确实点了该品牌)才计入核心分。</li>
       <li data-i18n-html="s0_how4"><b>每个数字都带不确定区间。</b>小到不真实的差距会标成“无法区分”——绝不给假的、过度精确的排名。</li>
     </ol>
@@ -227,7 +227,7 @@
       <ul>
         <li data-i18n-html="s3_notice1"><b>100% 本地。</b>程序在你机器的 <b>127.0.0.1</b> 上运行——回路里没有我们的任何服务器。它开源(MIT),你能读每一行;报告里的<b>“网络去向”</b>面板会显示这次运行到底连了哪里。</li>
         <li data-i18n-html="s3_notice2"><b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——只发往 <b>api.anthropic.com</b>(你自己的账户)。</li>
-        <li data-i18n-html="s3_notice3"><b>作者零收益——本工具免费。</b>你花的任何钱都给 <b>Anthropic</b> 用来跑 Claude,付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 Anthropic API key,由 Anthropic 直接向你计费。</li>
+        <li data-i18n-html="s3_notice3"><b>作者零收益——本工具免费。</b>你花的任何钱都直接付给你选的 AI 提供商,付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 API key,由各家直接向你计费。</li>
       </ul>
     </div>
     <div class="radio">
@@ -285,10 +285,10 @@ const I18N = {
   s0_sub:{zh:'它测量一个品牌在 AI 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。支持 Claude、ChatGPT(OpenAI)、Gemini 和 Perplexity,每个引擎单独出报告、并列对比、不混总分。',
     en:"It measures how often a brand shows up — <b>mentioned</b> and <b>cited</b> — in AI web-search answers, and turns that into a report you can trust and repeat. Supports Claude, ChatGPT (OpenAI), Gemini and Perplexity: one report per engine, compared side by side, never blended into one score."},
   s0_how:{zh:'工作原理', en:'How it works'},
-  s0_how1:{zh:'<b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 Claude 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。',
-    en:'<b>24 fixed questions, in a fixed 8 / 6 / 6 / 4 mix</b> — 8 discovery ("what\'s best for…"), 6 comparison ("how do brands compare on…"), 6 local/scenario, and 4 brand-defense. The first 20 <b>never name any brand</b>, so the test can\'t nudge Claude toward you — only the 4 defense questions name your brand on purpose. Keeping the set and the mix fixed is what makes runs <b>comparable and repeatable</b> instead of drifting every time.'},
-  s0_how2:{zh:'<b>每道题会问多次</b>,因为 Claude 的回答每次都不一样——单次回答不可靠。它会一直问到冒出的品牌<b>不再变化</b>(稳定)为止,所以飘的题多采样、稳的题更省钱。',
-    en:"<b>Each question is asked several times</b>, because Claude's answer varies from run to run — a single answer isn't reliable. It keeps asking until the brands that come up <b>stop changing</b> (stable), so shaky questions get more samples and steady ones cost less."},
+  s0_how1:{zh:'<b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 AI 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。',
+    en:'<b>24 fixed questions, in a fixed 8 / 6 / 6 / 4 mix</b> — 8 discovery ("what\'s best for…"), 6 comparison ("how do brands compare on…"), 6 local/scenario, and 4 brand-defense. The first 20 <b>never name any brand</b>, so the test can\'t nudge the AI toward you — only the 4 defense questions name your brand on purpose. Keeping the set and the mix fixed is what makes runs <b>comparable and repeatable</b> instead of drifting every time.'},
+  s0_how2:{zh:'<b>每道题会问多次</b>,因为 AI 的回答每次都不一样——单次回答不可靠。它会一直问到冒出的品牌<b>不再变化</b>(稳定)为止,所以飘的题多采样、稳的题更省钱。',
+    en:"<b>Each question is asked several times</b>, because an AI's answer varies from run to run — a single answer isn't reliable. It keeps asking until the brands that come up <b>stop changing</b> (stable), so shaky questions get more samples and steady ones cost less."},
   s0_how3:{zh:'<b>用固定规则打分,不用 AI 当裁判。</b>只有清晰的品牌名才计入(保守计数)。证据分三档——<b>已提及 → 被引用 → 已核实</b>——只有<i>已核实</i>(被引用的页面可访问且确实点了该品牌)才计入核心分。',
     en:'<b>Scored by fixed rules, not an AI judge.</b> Only clear brand names count (conservative). Evidence has three levels — <b>mentioned → cited → verified</b> — and only <i>verified</i> (the cited page is reachable and really names the brand) counts toward the core score.'},
   s0_how4:{zh:'<b>每个数字都带不确定区间。</b>小到不真实的差距会标成“无法区分”——绝不给假的、过度精确的排名。',

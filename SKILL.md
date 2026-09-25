@@ -1,12 +1,13 @@
 ---
 name: aivis
 description: >
-  Claude API web-search 可见度(代理测量):用冻结题库反复探测 Claude API(web_search),
-  以确定性规则统计品牌被提及/被引用的频率与结构,输出带不确定区间、可审计的报告。
+  AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity 四家 21 个模型):
+  用冻结题库反复探测你选中的每个引擎(web search 开启),以确定性规则统计品牌被提及/被引用的
+  频率与结构,每个引擎各出一份带不确定区间、可审计的报告,再并列对比(不混总分)。
   仅观测,不生成"照做就能提升 AI 提及"的建议。
 ---
 
-# aivis — Claude API web-search 可见度(代理测量)
+# aivis — AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity)
 
 > 薄入口:本文只编排流程,逻辑全在 `aivis` 库 / CLI 里。
 > 起草问题的逐桶原则见 [docs/question-drafting-principles.md](docs/question-drafting-principles.md);
@@ -19,14 +20,15 @@ description: >
 > **原理一句话**:用 24 道固定题(8 发现 / 6 比较 / 6 本地 / 4 防御;前 20 道不点名品牌以免引导
 > AI)反复提问(每题问到"提及品牌集稳定"为止),再用**确定性规则**(非 AI 判官、保守计数、
 > 三档证据 mentioned→cited→verified)计分,每个数字带不确定区间。可复现、可审计。
-> **🟥 成本诚实**:本工具开源免费、**作者不收任何费用**;你花的钱是付给 **Anthropic** 跑 Claude 的
-> AI 费用(自带 key,A 社直接计费),不经作者。全程本机运行、不上传任何数据。
+> **🟥 成本诚实**:本工具开源免费、**作者不收任何费用**;你花的钱是付给你选的 AI 提供商
+> (Anthropic / OpenAI / Google / Perplexity)的 AI 费用(自带 key,各家直接计费),不经作者。
+> 全程本机运行、不上传任何数据;每家 key 只发往那一家自己的接口。
 
 ## 两种模式
 
 ### SETUP(一次性 · 建一条新基线)
 
-触发:用户想测某个品牌在 Claude 里的可见度,或说 "setup"。照下面 7 步走;
+触发:用户想测某个品牌在 Claude / ChatGPT / Gemini / Perplexity 里的可见度,或说 "setup"。照下面 7 步走;
 **AI(=对话中的你)只在本模式起草问题/建议竞品,且必须人工确认后冻结**(CLAUDE.md §7.1)。
 
 0. **收集输入**:焦点品牌**全名**(明确请用户给全名,别用简称)+ 常见简称(aliases)+
@@ -53,19 +55,25 @@ description: >
 
 只重放冻结配置,不再起草:
 - 先 mock 跑通(零成本):`aivis run --config-dir configs/<name>`
-- 真实运行:`aivis run --config-dir configs/<name> --provider anthropic --yes`(过成本闸门)
-- 流程 probe → extract → verify → score → report,产出 Markdown + CSV(默认离线核验;`--check fetch` 真抓被引页面)。
+- 真实运行(单引擎):`aivis run --config-dir configs/<name> --provider anthropic --model claude-sonnet-5 --yes`
+  (`--model` 缺省取该引擎 `--tier` 档默认;`aivis models` 列出全部 24 个表面与诚实标记)
+- 真实运行(多引擎,用户选哪几个就填哪几个):
+  `aivis run --config-dir configs/<name> --surfaces anthropic:claude-sonnet-5,openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:perplexity/sonar --yes`
+  → 每个表面独立 run_id 与报告 + `analysis/compare/<id>/comparison.md|.html` 并列对比 + 账单;
+  开跑前会查齐各家密钥环境变量(缺则不发任何调用直接退出)并列出各表面预估与合计
+- 流程 probe → extract → verify → score → report,产出 Markdown + CSV + HTML(默认离线核验;`--check fetch` 真抓被引页面)。
 
 ## 成本闸门(每次真实运行前)
 
-- **开跑前先估**(零成本、不联网):`aivis estimate --config-dir configs/<name> --provider anthropic [--tier standard|high]` → 打印"≈N 次调用 ≈ $X(保守上界)"并对比 `budget_cap_usd`,告诉你会不会被拦。
+- **开跑前先估**(零成本、不联网):`aivis estimate --config-dir configs/<name> --provider anthropic [--model …]` 或 `--surfaces a:b,c:d` → 逐表面打印"≈N 次调用 ≈ $X(保守上界)"与合计,并对比 `budget_cap_usd`(每个表面各自受限),告诉你哪个会被拦。
 - mock(默认)估价为 0,静默通过;
 - 真实 provider:估算"≈N 次调用 ≈ $X"并要求人工确认;超 `budget_cap_usd` 开跑前直接阻断;
 - **运行中按真实累计花费硬封顶**:逼近 `budget_cap_usd` 即阻断,已完成部分保留、可 `--run-id` 续跑(估算只是上界,真实通常更低)。
 
 ## 红线提醒(对 Skill 使用者同样生效)
 
-- 输出一律是"**此引擎此配置下的代理测量**",不是 AI 排名真相;
+- 输出一律是"**此引擎此配置下的代理测量**",不是 AI 排名真相;多引擎**只并列、不混总分、不跨引擎排名**;
+- 各引擎的诚实标记(不接受温度 / 无区域参数 / 底层会变 / 纯搜索)如实呈现,不替引擎补齐它做不到的事;
 - 行动层只给线索(leads),不给保证;
 - 核心指标全由确定性规则算;AI 只许在 SETUP 起草(人工确认后冻结),不进测量轨;
 - 改配置 = 版本号 bump(新基线),不许静默混入旧趋势。

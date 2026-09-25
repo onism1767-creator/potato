@@ -8,15 +8,15 @@
 
 ## 0. 一句话项目定位（先理解再动手）
 
-本项目是一个**开源的 Claude Skill（SKILL.md）+ 命令行工具（CLI）**，用来测量一个品牌/网站在 **Claude API（开启 web_search）** 的回答中被**提及（mention）**和**被引用（citation）**的频率与结构。
+本项目是一个**开源的 Claude Skill（SKILL.md）+ 命令行工具（CLI）+ 本地图形向导**，用来测量一个品牌/网站在 **AI web-search 回答**（v0.2 起：Claude / OpenAI / Gemini / Perplexity 四家，每家若干模型，每个 provider×model 是一个独立**测量表面**）中被**提及（mention）**和**被引用（citation）**的频率与结构。
 
 它的本质是一个 **可复现的代理测量框架（reproducible proxy measurement framework）**：
 - **不是**爬虫；是反复用一批冻结的问题去"问"AI，收集回答 + 引用 URL，再用**确定性规则**打分。
-- **不是**"AI 排名真相检测器"；只测"Claude API web_search 这个表面在某配置下的表现"。
+- **不是**"AI 排名真相检测器"；只测"某个引擎的 web-search 表面在某配置下的表现"；多表面**只并列、不混总分、不跨引擎排名**。
 - 输出可追溯、可审计、带不确定区间的报告。
 
 ### 🟥 叙事红线（写注释、文案、报告、README 时都适用）
-1. 不许把本工具说成"测出了 Claude 曝光度真相 / AI 排名"。统一措辞：**"Claude API web-search 可见度（代理测量）"**。
+1. 不许把本工具说成"测出了 AI 曝光度真相 / AI 排名"。统一措辞：**"AI web-search 可见度（代理测量）"**，并总是点明是哪个引擎、哪个模型。
 2. 报告/输出里凡涉及结论，必须可标注 `surface_id` 与"**本结果仅代表此引擎**"。
 3. 行动层只给**线索（leads）**，**绝不**生成"照做就能让 AI 提到你"的保证或建议清单。本工具是观测工具，不是 recommendation engine。
 
@@ -68,7 +68,7 @@ agent 最常见的破坏之一是"顺手"引入重型抽象。本仓库：
 
 1. **不经人确认，禁止新增任何第三方依赖。**
 2. **MVP 存储 = SQLite / Postgres-JSONB + 普通文件（JSONL）。禁止引入向量数据库 / 向量检索**（计划书明确：首阶段不是 RAG 应用；语义检索留到很后期且需单独决策）。
-3. `extract` / `score` / `stats` 所在的纯层，**禁止** import `requests` / `httpx` / `anthropic` / 任何网络或 SDK 库。
+3. `extract` / `score` / `stats` 所在的纯层，**禁止** import `requests` / `httpx` / `anthropic` / `openai` / `google`（genai）/ `perplexity` / 任何网络或 SDK 库。
 4. 不要自创框架式抽象层、插件系统、ORM 魔法。**Provider 适配器是唯一允许的"接口预留"抽象**（见 §4）。
 
 ---
@@ -76,9 +76,11 @@ agent 最常见的破坏之一是"顺手"引入重型抽象。本仓库：
 ## 4. Provider 适配器规则（🟥 多引擎在架构层解决，不在调用处 if-else）
 
 1. 所有引擎都藏在 `contracts/adapter.py` 的 `ProviderAdapter` Protocol 后面：输入（问题/区域/语言/温度/`max_uses` 等）→ 标准化输出 `RawResponse`（回答正文、引用列表、搜索次数、模型名+版本、`tool_path`、错误码）。
-2. **第一版只实现 `mock` 与 `anthropic` 两个适配器。** OpenAI / Gemini **只保留接口、不实现**——不许在第一版写它们的真实调用代码。
-3. **禁止在 pipeline 里用 `if provider == "anthropic"` 这类分支** 处理引擎差异；差异必须封装在各自适配器内。
-4. Anthropic 适配器要点（实现时对照官方文档复核）：调用 web_search 工具；引用始终开启；工具报错以 **HTTP 200 + error block** 返回，需**捕获并记为失败**（不是空回答）；每次记录精确模型名 + 日期。
+2. **v0.1 只有 `mock` 与 `anthropic`；v0.2（2026-09）起接入 `openai` / `gemini` / `perplexity` 四家真引擎。** 模型目录（纯数据、不 import SDK）在 `providers/catalog.py`，唯一工厂在 `providers/registry.py`——**这是全仓库唯一允许按引擎名分支的地方**。接一个新引擎 = 新适配器模块 + 目录条目 + 离线替身测试，pipeline 零改动。
+3. **禁止在 pipeline / GUI / CLI 里用 `if provider == "anthropic"` 这类分支** 处理引擎差异；差异必须封装在各自适配器内，选择一律经 registry。
+4. Anthropic 适配器要点（实现时对照官方文档复核）：调用 web_search 工具（经典版 `web_search_20250305`，见 ARCHITECTURE §9）；引用始终开启；工具报错以 **HTTP 200 + error block** 返回，需**捕获并记为失败**（不是空回答）；`refusal` 停止原因记为失败且**不做 fallback**；每次记录精确模型名 + 日期。
+5. **每个表面的诚实标记必须在目录里声明并进清单**：`supports_temperature`（拒绝采样参数的模型不传温度）/ `supports_region`（无区域参数的 API）/ `pinned`（底层模型会自动更新的预设档）/ `surface_kind`（`search_only` = 无回答文本，提及类指标不适用）。probe 把它们写进 `RunManifest`（`temperature_applied` / `region_applied` / `surface_kind`），报告如实呈现；不许替引擎"补齐"它做不到的事。
+6. 引擎给的引用 URL 不是真实网址时（Gemini 的 grounding 跳转链接），只许在适配器里**读跳转头解析**（不抓正文、不出该跳转域），原始链接原样留在 raw_json；解析失败保留原链接交 verify 如实核为无法归属。
 
 ---
 
@@ -125,8 +127,10 @@ ai-visibility/
   .github/workflows/ci.yml  # 推送/PR 时的检查员（§10.5）
   src/aivis/
     contracts/         # 🟥 载重墙：records.py / adapter.py / config.py（先写、冻结）
-    providers/         # mock.py（第一版）/ anthropic.py（第二步）；openai/gemini 仅留接口
-    pipeline/          # probe.py / extract.py(纯) / verify.py / score.py(纯) / report.py
+    providers/         # catalog.py（模型目录，纯数据）/ registry.py（唯一工厂）/ mock.py /
+                       # anthropic.py / openai.py / gemini.py / perplexity.py（每家一个适配器）
+    pipeline/          # probe.py / extract.py(纯) / verify.py / score.py(纯) / report.py /
+                       # report_compare.py（多表面并列对比，纯渲染）
     stats/             # wilson.py / bootstrap.py / sequential.py（全纯）
     storage/           # raw(只追加) / evidence / analysis 三个边界
     cli.py             # 🟧 薄：子命令转发到 pipeline，不写业务逻辑
@@ -135,7 +139,7 @@ ai-visibility/
   configs/demo/        # 5 品牌中立 demo：questions.yml / brands.yml
 ```
 
-CLI 子命令：`probe` / `extract` / `verify` / `score` / `report`；全局 flag `--mock`（默认可跑通）、`--tier`（选模型档位）。
+CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `models` / `estimate`；全局 flag `--provider`（默认 mock）、`--model`（精确 id）、`--tier`（档位便利选项）、`--surfaces`（多表面 provider:model 列表，逐个跑 + 并列对比 + 账单）。
 **🟥 CLI 与 SKILL.md 都薄如纸**：只负责编排，所有逻辑在可被 import 的库里（否则逻辑漏进测不到的地方）。
 
 ---
@@ -181,11 +185,13 @@ CLI 子命令：`probe` / `extract` / `verify` / `score` / `report`；全局 fla
 
 ---
 
-## 11. 第一版范围（🟧 会随产品决策更新；当前锁定如下）
+## 11. 版本范围（🟧 会随产品决策更新；当前锁定如下）
 
-**第一版要做（IN）**：`contracts/` 全部冻结类型；`mock` 适配器；三类数据存储（raw 只追加，JSONL+SQLite 即可）；`probe→extract→verify→score→report` 在 mock 上端到端跑通，产出最简真实的 **Markdown + CSV** 报告；`extract`（owned/earned + 保守计数）与 `score`（六指标 + Wilson 区间）真实实现 + 黄金测试；`verify` 最小版（URL 规范化 + 可达性 + 来源分类 + 三档标签，**不含真页面抓取摘录**）；薄 CLI；`configs/demo/` 5 品牌中立 demo；CI 绿。
+**v0.2 已做（2026-09，多引擎）**：四家真引擎适配器（Claude 6 / OpenAI 6 / Gemini 5 / Perplexity 4，含 Search API 纯搜索表面）· 模型目录 + 注册表 · `--model` / `--surfaces` 多表面串跑 · 并列对比报告（只并列不混总分）· 账单（清单记真实花费）· 清单诚实字段（温度/区域是否生效、表面类型）· GUI 多选引擎 + 每家密钥框 + 合计预估 · `models` 子命令。**未做**：跨引擎并行跑（串行）· 整批总预算上限（仍是每表面各自受限）· Gemini Interactions API（仍用 generateContent）。
 
-**第一版先不做（OUT）**：真 Anthropic 适配器（第二步立刻接）· 序贯采样 `run_until_stable`（先固定 N=3）· verify 真页面抓取 + 摘录支持性检查 · driver tags / 行动层 · HTML 美化报告 · bootstrap 区间 / 分层排行榜 · 情感层 · 运营轨 · 任何 SaaS 件（workspace/RBAC/告警/审计）。
+**v0.1 要做（IN，已完成）**：`contracts/` 全部冻结类型；`mock` 适配器；三类数据存储（raw 只追加，JSONL+SQLite 即可）；`probe→extract→verify→score→report` 在 mock 上端到端跑通，产出最简真实的 **Markdown + CSV** 报告；`extract`（owned/earned + 保守计数）与 `score`（六指标 + Wilson 区间）真实实现 + 黄金测试；`verify` 最小版（URL 规范化 + 可达性 + 来源分类 + 三档标签，**不含真页面抓取摘录**）；薄 CLI；`configs/demo/` 5 品牌中立 demo；CI 绿。
+
+**仍未做（OUT）**：driver tags / 行动层 · 情感层 · 运营轨 · 任何 SaaS 件（workspace/RBAC/告警/审计）。（v0.1 的 OUT 项里，真 Anthropic 适配器、序贯采样、verify 真页面抓取、HTML 报告、bootstrap 区间均已在后续版本落地。）
 
 > 这些 OUT 项不是"永不做"，是"功能慢慢加"——但**只能在地基（契约 + 纯内核 + 测试网）绿了之后，一次加一块，每块躲在它稳定的契约后面加**。
 

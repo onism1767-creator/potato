@@ -21,7 +21,7 @@
 
 ## 1 · What Potato is
 
-Potato measures how visible your brand is **inside Claude's web-search answers**. It asks Claude a fixed set of frozen questions, collects every brand **mention** and source **citation**, then scores them with **deterministic rules — no AI judge, no guesswork**. The result is a reproducible, auditable report where **every number carries a confidence interval**.
+Potato measures how visible your brand is **inside AI web-search answers** — **Claude, ChatGPT (OpenAI), Gemini and Perplexity** (21 models, pick any subset). It asks each AI you select the same fixed set of frozen questions, collects every brand **mention** and source **citation**, then scores them with **deterministic rules — no AI judge, no guesswork**. The result is one reproducible, auditable report **per engine**, plus a **side-by-side comparison** — engines are placed next to each other and **never blended into one score**. **Every number carries a confidence interval.**
 
 ---
 
@@ -34,7 +34,7 @@ Potato measures how visible your brand is **inside Claude's web-search answers**
 5. Follow the **3 steps** on the page:
    - **Brand** — your brand name, official domain, and category *(optional: aliases, competitors)*.
    - **Draft & review** — generate the question set (a **free template = $0, no key**, or **AI-drafted** with your own key), edit anything you like, and run the built-in quality check.
-   - **Run & open report** — choose the **free mock preview ($0)** or a **real run against Claude**, then open the HTML report with one click.
+   - **Run & open report** — choose the **free mock preview ($0)** or a **real run**, tick **which AIs to test (multi-select)**, see the **per-AI estimate and total**, then open the **side-by-side comparison** and each engine's HTML report with one click. A **bill** (actual spend per AI) is shown when it finishes.
 
 <p align="center"><img src="docs/assets/gui-wizard.png" alt="Potato local wizard — Step 1: brand & category" width="660"></p>
 
@@ -67,7 +67,7 @@ The portable build ships an **official, python.org-signed Python** (not a homema
 - **Deterministic scoring, no AI judge.** Every counted number comes from fixed rules, not a model's opinion. AI is used only to *draft* questions (which you approve and freeze) and to *narrate* the report — **never to decide the metrics**.
 - **Conservative counting.** Only a clear, unambiguous brand name scores. Abbreviations and ambiguous names are recorded but **not counted** — the tool never rounds up in your favor.
 - **Three evidence tiers — `mentioned → cited → verified` — and only `verified` enters the core score.** "Verified" means Potato actually fetched the cited page and confirmed it is reachable **and really mentions the brand**.
-- **Independent citation check.** Potato re-fetches the third-party pages Claude cited and checks them itself (dead links, mismatches) — it does **not** take Claude's word for them.
+- **Independent citation check.** Potato re-fetches the third-party pages the AI cited and checks them itself (dead links, mismatches) — it does **not** take the AI's word for them.
 - **Clean room.** Every probe is a fresh call with no history and no personalization; region, language and temperature are pinned — the same question under the same conditions, every time.
 - **Honest uncertainty.** Every ratio is shown with a Wilson 95% interval. When two brands' intervals overlap, Potato says **"not distinguishable"** instead of inventing a precise ranking.
 - **No leading the witness.** 24 frozen questions (8 discovery / 6 comparison / 6 scenario / 4 brand-defense); the **first 20 never name any brand**, and your own brand is drafted **blind** — the AI is never told which brand is yours.
@@ -78,9 +78,25 @@ The portable build ships an **official, python.org-signed Python** (not a homema
 
 Some categories are answered differently depending on location. Potato **pins a single region and language** (e.g. US / en-US) and runs every probe clean-room, so a run is one consistent **national-level** view — not a blur of different cities, and not your personalized results. Different regions are measured as **separate strata** and are **never averaged together** into a single misleading number.
 
-### Today it measures Claude — but it is modular
+### Four engines, 21 models — compared side by side, never blended
 
-Right now Potato connects to **Claude (with web search) only**, so what you see is **your visibility on Claude specifically** — not "AI in general." But the engine is **provider-agnostic by design**: every model sits behind one adapter interface, with no model-specific branches in the pipeline. Other AIs can be added later — or **you can write your own adapter** — **without rewriting the engine**.
+| Engine | Models (v0.2, verified against official docs 2026-09-22) | How citations are read |
+|---|---|---|
+| **Claude** (Anthropic) | Haiku 4.5 · Sonnet 4.6 · Sonnet 5 · Opus 4.8 · Opus 5 · Fable 5.1 | inline `web_search` citations |
+| **ChatGPT models** (OpenAI) | GPT-6 Luna / Sol / Astra · GPT-5.6 Luna / Terra / Sol | Responses API `url_citation` annotations |
+| **Gemini** (Google) | 3.8 / 3.7 / 3.6 / 3.5 Flash · 3.1 Pro preview | Google Search grounding supports → chunks |
+| **Perplexity** | Sonar · Sonar Pro (preset low) · Sonar Reasoning Pro (preset medium) · Search API | Agent API `url_citation` / `[n]` markers; Search API = result links |
+
+Each engine is its own **measurement surface**: it gets its own report, its own budget cap and its own bill. The comparison page places surfaces **side by side — no combined score, no cross-engine ranking**, because "visible on Gemini" and "visible on Claude" are different facts.
+
+**Honesty flags are shown on every model card and recorded in every run manifest:**
+- *no temperature* — the model rejects sampling parameters (all OpenAI reasoning models; Claude Sonnet 5 / Opus 4.8 / Opus 5 / Fable 5.1), so the clean-room temperature cannot be pinned there;
+- *no region* — the API has no region parameter (Gemini);
+- *underlying model changes* — Perplexity's official presets run an OpenAI model that auto-updates and cannot be pinned (the manifest records the actual model each run);
+- *search only* — Perplexity's Search API returns result links with **no generated answer**, so mention metrics do not apply (citation metrics still do);
+- Gemini returns Google redirect links instead of real URLs; Potato resolves them by reading only the redirect header (no page fetch) so owned / earned attribution still works, and keeps the original link in the raw record.
+
+The engine is **provider-agnostic by design**: every model sits behind one adapter interface, the model catalog lives in one file, and there are no model-specific branches in the pipeline — **you can add an engine by writing one adapter**.
 
 ---
 
@@ -89,19 +105,19 @@ Right now Potato connects to **Claude (with web search) only**, so what you see 
 ### What the key is for
 
 - The **free preview (mock) needs no key and costs nothing.**
-- A key is needed only for the two steps that actually call Claude: **AI question drafting** (optional) and a **real measurement**.
-- You bring your **own Anthropic API key**, and **Anthropic bills you directly**.
+- A key is needed only for the steps that actually call an AI: **AI question drafting** (optional, uses Claude) and a **real measurement** (one key per engine you tick — Anthropic, OpenAI, Google Gemini, Perplexity; the Perplexity key covers both its Agent API and Search API).
+- You bring your **own API keys**, and **each provider bills you directly**.
 
 ### What it costs
 
 - **The author charges you nothing — ever. Potato is open source (MIT).**
-- A full real check is **hard-capped to a budget you set** — on the **economy (Haiku) tier it typically lands around $5 or less**, with higher-quality tiers (Sonnet / Opus) costing more. Potato estimates the cost before it starts and **stops before it can overrun**. That money is Claude usage paid to **Anthropic**, never to the author.
+- A full real check is **hard-capped to a budget you set, per AI** — a lightweight model (Claude Haiku, GPT-6 Luna, Gemini Flash, Sonar) typically lands around **$1–5**, flagship models (Fable 5.1, GPT-6 Astra) cost more. Potato shows the **estimate for every AI you tick and the total** before it starts, and **stops each AI before it can overrun**. That money is AI usage paid to **the provider you chose**, never to the author.
 
 ### Security (verifiable, not just a promise)
 
 - Runs **only on your machine** (`127.0.0.1`). There is **no cloud server, and nothing is uploaded.**
 - Your key lives **in memory only**, passed to a local subprocess through an environment variable — **never written to disk, never logged, never placed on a command line.**
-- It is sent **only to `api.anthropic.com`** (your own account) — **never to any author server. Zero telemetry.**
+- Each key is sent **only to that provider's own API** — `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.perplexity.ai` (your own accounts) — **never to any author server. Zero telemetry.**
 - Open source and auditable; the report's **"network destinations"** panel shows exactly where the run connected, so you can verify all of the above yourself.
 
 ---
@@ -109,6 +125,7 @@ Right now Potato connects to **Claude (with web search) only**, so what you see 
 ### For developers & advanced use
 
 - **Measure your own brand from the CLI / Claude Skill** (SETUP mode): `aivis init` scaffolds a focal config → `aivis validate` checks it → `aivis estimate` prices a run → `aivis run` executes it. See [SKILL.md](SKILL.md).
+- **Multi-engine from the CLI:** `aivis models` lists all 24 surfaces with flags and per-run estimates; `aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` runs each surface, writes one report per surface plus `analysis/compare/<id>/comparison.html`, and prints the bill. Keys are read only from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY`.
 - **Project map:** [SKILL.md](SKILL.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CLAUDE.md](CLAUDE.md) (behavioral red lines) · `src/aivis/contracts/` (data contracts) · `configs/demo/` (neutral 5-brand demo).
 - **Quality bar:** contracts frozen, three-layer storage (raw is append-only), deterministic pure scoring, golden tests, CI guards (ruff / mypy / import-linter / gitleaks / pytest) — **254 tests green.**
 

@@ -123,3 +123,43 @@ v1 的两个实现(OfflineChecker / HttpHeadChecker)都不读网页正文,无 pr
 - **report 内部 render(纯)/ write(IO)分离**:Markdown/CSV 可做黄金快照。
 - **黄金样本工作流**:`tests/fixtures/golden_e2e_bundle.json` 冻结整个 ScoreBundle;有意改口径时运行 `tools/regen_golden.py` 再生成,人工检查 diff 并在 PR 说明(CLAUDE.md §10)。
 - **Windows 注意**:`lint-imports.exe` 可能被应用控制策略拦截,本地用 `python -c "from importlinter.cli import lint_imports; ..."`(pre-commit 已如此配置);CI(Linux)为权威。
+
+## 10. v0.2 多引擎决策(2026-09,四家 24 个表面)
+
+**目录 + 注册表**:`providers/catalog.py` 是纯数据的模型目录(不 import 任何 SDK),`providers/registry.py` 是
+provider:model → 适配器的唯一工厂,也是全仓库唯一按引擎名分支的地方;SDK 只在对应分支里惰性 import
+(选 mock 不加载付费 SDK,某家 SDK 缺失只影响那一家)。单价与计价逻辑仍在各适配器模块(按 usage 计价,§6.3)。
+
+**表面 = provider × model,各自独立**:每个表面独立 run_id、独立 RunManifest、独立报告、独立受 `budget_cap_usd`
+约束;多表面串行跑(`--surfaces`),最后出 `report_compare`(纯渲染)的并列对比页——**只并列、不混总分、
+不跨引擎排名**,配置指纹不一致时告警。账单 = 各清单 `cost_usd_actual` 之和。
+
+**清单诚实字段**(RunManifest / ScoreBundle):`temperature_applied` / `region_applied`(该引擎是否真的接受了
+钉住的采样温度 / 区域参数;None = 旧记录未记录)、`surface_kind`(answer / search_only)、`cost_usd_actual`。
+目录里的 `supports_temperature` / `supports_region` / `pinned` / `surface_kind` 是这些字段的来源。
+
+**各家的坑与定论**(2026-09-22 对照官方文档核实):
+- **Claude**:新三代(Sonnet 5 / Opus 5 / Fable 5.1)不接受 temperature,思考常开故 max_tokens 8192;
+  `refusal` 停止原因记为失败、**不做服务端 fallback**(换模型作答会让"此表面"失真);经典版
+  `web_search_20250305` 在 5.x 上是否可用待真机验证(不可用会显式报错,不静默)。
+- **OpenAI**:Responses API + `web_search`;引用 = `url_citation` 标注(起止位置 → cited_text);
+  `web_search_call` 项计搜索次数(只有 action=search 算搜索,但所有项都按工具费保守计价);
+  `max_tool_calls` = max_uses;`store=False`;推理模型一律不传 temperature;GPT-5.6 系列已从官方总览页
+  下架(status=legacy)。
+- **Gemini**:grounding 引用 = supports → chunks(未被 support 引用的 chunk 只是搜索结果,不算引用);
+  🟥 chunk 的 uri 是 Google 跳转链接,适配器只读跳转头(HEAD、不跟随出 Google 域、不抓正文、最多 3 跳)
+  解析真实网址,原链接留在 raw_json.redirects;无 max_uses 类参数(估算按每调用 5 次搜索取上界,
+  grounding $14/千次按全额计);无区域参数(region_applied=False);SAFETY 等 finish_reason → refusal。
+- **Perplexity**:Sonar 聊天接口 2026-09-27 停服,走 Agent API:`perplexity/sonar` 显式 model 可钉;
+  sonar-pro / sonar-reasoning-pro 按官方迁移表映射为预设 low / medium(底层 OpenAI 模型自动更新,
+  `pinned=False`,RawResponse.model 记录每次实际底层模型);引用取 `url_citation`,无标注时按正文
+  `[n]` / `[web:n]` 标记映射结果 id(保守);成本优先取 API 自报 `usage.cost.total_cost`。
+  **Search API** 是纯搜索表面:answer_text 恒空、每条结果一条引用(cited_text=摘要),提及类指标
+  在 score/报告里标"不适用",引用类指标照常;$5/千次固定价;两个表面共用一把 key。
+
+**估算口径**:Anthropic 的每搜索 1.2 万输入 token 是 2026-06 真机校准值;其余三家先沿用该口径作保守上界
+并在代码里标注"未校准",真机跑后按 usage 校准。
+
+**FatalProviderError 统一在 contracts.adapter**:缺密钥 / 鉴权 / 权限 / 请求格式错误会逐调用复现 → 中止整批;
+瞬时错误(限速 / 超时 / 5xx)记成 finished_ok=False 的 RawResponse 继续跑。多表面运行开跑前先查齐各家
+密钥环境变量,缺则不发任何调用直接退出。

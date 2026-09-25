@@ -98,10 +98,16 @@ probe → ①raw               ├─→ score(纯)→ report(渲染)
 4. 测试:`tools/regen_golden.py` 重生成黄金 + `python tools/regen_examples.py` 重生成 HTML 样张;人工核对 diff;说明口径。
 - 护栏:黄金测试红(口径变)+ mypy 红(字段缺)= 改漏了当场知道。
 
-### 3.2 加一个引擎(如 OpenAI)
-1. `providers/openai.py`:写一个类实现 `ProviderAdapter`(provider_name/model_name/ask/estimate_cost_usd/actual_cost_usd…)。
-2. `cli.py: _make_adapter`:加一个分支(这是**唯一**该出现引擎名的地方)。
-3. 测试:`tests/test_openai_adapter.py` 用替身覆盖网络触点(仿 `test_anthropic_adapter.py`)。
+### 3.2 加一个引擎(v0.2 起四家已接:anthropic / openai / gemini / perplexity)
+1. `providers/catalog.py`:加 `ProviderInfo`(密钥环境变量名 + 唯一发往主机)和各模型的 `ModelInfo`
+   (含诚实标记:supports_temperature / supports_region / pinned / surface_kind)+ 档位默认表。
+2. `providers/<engine>.py`:写一个类实现 `ProviderAdapter`(provider_name/model_name/info/ask/
+   estimate_cost_usd/actual_cost_usd…),单价表放本模块,唯一网络触点 `_send()`。
+3. `providers/registry.py: make_adapter`:加一个分支(这是**唯一**该出现引擎名的地方;SDK 在分支里惰性 import)。
+4. `pyproject.toml`:依赖白名单加 SDK(经人确认),import-linter 纯层禁入名单加它;`.pre-commit-config.yaml`
+   两个本地钩子的 additional_dependencies 同步加。
+5. 测试:`tests/test_<engine>_adapter.py` 用替身覆盖网络触点(仿 `test_openai_adapter.py`);
+   `tests/test_registry.py` 的目录计数与默认表一致性测试会要求你把目录改齐。
 - 护栏:import-linter 保证你没把 SDK 漏进纯层;`ProviderAdapter` 协议保证形状齐全。
 
 ### 3.3 加一个核验方式
