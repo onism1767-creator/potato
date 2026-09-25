@@ -12,11 +12,17 @@ description = "Claude API web-search 可见度(代理测量)—— 可复现的�
 requires-python = ">=3.12"
 # 🟥 CLAUDE.md §3:不经人确认禁止新增第三方依赖。
 # 当前白名单:pydantic(§2 契约要求)、PyYAML(§2 questions.yml/brands.yml 要求)、
-# anthropic(第二步接真引擎时经人确认加入;只许 providers 层 import,由 import-linter 保证)。
+# anthropic(第二步接真引擎时经人确认加入;只许 providers 层 import,由 import-linter 保证);
+# openai / google-genai / perplexityai(v0.2 多引擎,2026-09 经人确认加入,同上约束)。
 dependencies = [
     "pydantic>=2.7",
     "PyYAML>=6.0",
-    "anthropic>=0.60",
+    # anthropic 钉在 0.x:1.x 换用 httpx2,SDK 大版本迁移另起一步(测试替身要跟着改)
+    "anthropic>=0.60,<1",
+    # v0.2 多引擎(2026-09 经人确认加入;同样只许 providers 层 import,由 import-linter 保证)
+    "openai>=3.0",
+    "google-genai>=2.0",
+    "perplexityai>=0.40",
 ]
 
 [project.optional-dependencies]
@@ -95,6 +101,8 @@ forbidden_modules = [
     "urllib3",
     "anthropic",
     "openai",
+    "google",
+    "perplexity",
     "aivis.storage",
     "aivis.providers",
     "aivis.cli",
