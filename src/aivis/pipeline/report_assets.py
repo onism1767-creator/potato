@@ -92,6 +92,11 @@ def _help(text: str) -> str:
 
 
 # ---- markdown 数字格式化 ----
+def _yesno(v: bool | None) -> str:
+    """诚实字段三态:None=未记录(旧运行)/ True=生效 / False=该引擎钉不住此参数。"""
+    return "—" if v is None else ("✓" if v else "✗")
+
+
 def _pct(x: float) -> str:
     return f"{100.0 * x:.1f}%"
 

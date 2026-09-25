@@ -22,6 +22,7 @@ from aivis.pipeline.report_assets import (
     _help,
     _iv_int,
     _pi,
+    _yesno,
 )
 
 # "怎么读这个指标"短引导(英文,与报告一致;静态文案)
@@ -38,6 +39,20 @@ _H_SUPPORT = (
 _H_MATRIX = "Highest evidence tier reached per question: verified > cited > mentioned."
 _H_EVIDENCE = (
     "Per cited URL: owned vs earned, reachable, whether the page mentions the brand, method."
+)
+
+# API 去向主机:与 providers.catalog.PROVIDERS 的 endpoint 一致(test_report_surface_fields
+# 断言两者相等);报告层不 import providers 包,以免拖入 SDK
+_PROVIDER_HOST = {
+    "anthropic": "api.anthropic.com",
+    "openai": "api.openai.com",
+    "gemini": "generativelanguage.googleapis.com",
+    "perplexity": "api.perplexity.ai",
+}
+_SEARCH_ONLY_NOTE_EN = (
+    "Search-only surface: this engine returns search results (title / URL / snippet) with no "
+    "generated answer, so mention coverage, prominence, mention SOV and stability do not apply. "
+    "Citation metrics = whether a brand appears in the result links."
 )
 
 # 健康灯按状态取语义色(与 GUI 一致:绿 / 琥珀 / 红),不再恒绿误导。
@@ -75,7 +90,7 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
     p.append(
         '<div class="titlebar"><span style="font-size:15px;font-weight:600;">'
         'aivis</span><span style="font-size:20px;font-weight:600;">'
-        "Claude Visibility Dashboard</span></div>"
+        "AI Visibility Dashboard</span></div>"
     )
     p.append(
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;'
@@ -91,6 +106,12 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         'a reproducible proxy measurement, not "AI ranking truth", '
         "and not a guarantee of improvement.</span></div>"
     )
+    search_only = bundle.surface_kind == "search_only"
+    if search_only:
+        p.append(
+            '<div class="note" style="margin-bottom:20px;color:#8A5A00;">'
+            f"{e(_SEARCH_ONLY_NOTE_EN)}</div>"
+        )
     # 英雄 + 健康三卡
     hero = ranked[0]
     gap = ""
@@ -111,7 +132,8 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         f'<div><div class="lbl">{lbl_top}</div>'
         f'<div class="big" style="font-size:30px;margin-top:6px;">{e(hero.brand)}</div>'
         f'<div style="display:flex;align-items:baseline;gap:8px;margin-top:2px;">'
-        f'<span class="big">{_pi(hero.mention_coverage.point)}</span>{gap}</div>'
+        f'<span class="big">{"n/a" if search_only else _pi(hero.mention_coverage.point)}'
+        f"</span>{'' if search_only else gap}</div>"
         f"{_help(_H_COVERAGE)}</div>"
         f'<div class="mc"><div class="lbl">Citation validity</div>'
         f'<div class="big" style="margin-top:4px;">{_pi(h.citation_validity_rate)}</div>'
@@ -160,7 +182,7 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
             "0 external API calls</td></tr>"
         )
     else:
-        host = "api.anthropic.com" if bundle.provider == "anthropic" else e(bundle.surface_id)
+        host = e(_PROVIDER_HOST.get(bundle.provider, bundle.surface_id))
         api_row = (
             f'<tr><td style="color:#7E8B76;">{host}</td>'
             f'<td style="text-align:right;font-weight:500;">{api_calls} calls</td></tr>'
@@ -181,7 +203,15 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         f'<tr><td style="color:#7E8B76;">Evidence basis</td><td style="text-align:right;">'
         f"{e(bundle.tier_basis)}</td></tr>"
         f'<tr><td style="color:#7E8B76;">Config fingerprint</td><td style="text-align:right;">'
-        f"{e(bundle.config_fingerprint[:12])}…</td></tr></table></div></div>"
+        f"{e(bundle.config_fingerprint[:12])}…</td></tr>"
+        f'<tr><td style="color:#7E8B76;">Surface kind</td><td style="text-align:right;">'
+        f"{e(bundle.surface_kind)}</td></tr>"
+        f'<tr><td style="color:#7E8B76;">Temperature / region applied</td>'
+        f'<td style="text-align:right;">{e(_yesno(bundle.temperature_applied))} / '
+        f"{e(_yesno(bundle.region_applied))}</td></tr>"
+        f'<tr><td style="color:#7E8B76;">Actual cost (bill)</td><td style="text-align:right;">'
+        f"{'—' if bundle.cost_usd_actual is None else f'${bundle.cost_usd_actual:.4f}'}"
+        "</td></tr></table></div></div>"
     )
     # 证据链
     p.append(_evidence_html(bundle))
@@ -195,7 +225,7 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
     p.append("</div>")
 
     body = "\n".join(p)
-    title = f"Claude visibility report · {e(bundle.run_id[:8])}"
+    title = f"AI visibility report · {e(bundle.provider)} · {e(bundle.run_id[:8])}"
     return (
         f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8"/>\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1"/>\n'

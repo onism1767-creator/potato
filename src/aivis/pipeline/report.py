@@ -21,6 +21,7 @@ from aivis.pipeline.report_assets import (
     _fmt,
     _fmt_optional,
     _pct,
+    _yesno,
 )
 from aivis.pipeline.report_html import render_html
 
@@ -52,7 +53,7 @@ def render_markdown(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
     lines: list[str] = []
     out = lines.append
 
-    out("# Claude API web-search 可见度报告(代理测量)")
+    out("# AI web-search 可见度报告(代理测量)")
     out("")
     out(f"> **{bundle.engine_note}**")
     out("")
@@ -75,6 +76,18 @@ def render_markdown(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
     out("|---|---|")
     out(f"| provider / surface | {bundle.provider} / {bundle.surface_id} |")
     out(f"| model(档位) | {bundle.model}({bundle.model_tier}) |")
+    kind_note = (
+        "纯搜索结果,无回答文本;提及类指标不适用"
+        if bundle.surface_kind == "search_only"
+        else "回答 + 引用"
+    )
+    out(f"| 表面类型 | {bundle.surface_kind}({kind_note}) |")
+    out(
+        f"| 温度 / 区域是否生效 | {_yesno(bundle.temperature_applied)} / "
+        f"{_yesno(bundle.region_applied)}(✗ = 该引擎钉不住此参数,如实标注;— = 未记录) |"
+    )
+    cost = "—" if bundle.cost_usd_actual is None else f"${bundle.cost_usd_actual:.4f}"
+    out(f"| 实际花费(账单) | {cost} |")
     out(f"| stratum(区域\\|语言\\|档位) | {bundle.stratum} |")
     versions = f"{bundle.prompt_version} / {bundle.competitor_set_version or '—'}"
     out(f"| 题库版本 / 竞品集版本 | {versions} |")
@@ -119,14 +132,22 @@ def render_markdown(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         "| 位置显著度 | 提及 SOV | 引用 SOV | 稳定性 |"
     )
     out("|---|---|---|---|---|---|---|---|")
+    search_only = bundle.surface_kind == "search_only"
+    na = "不适用"
     for m in bundle.brands:
         out(
-            f"| {m.brand} | {_fmt(m.mention_coverage)} | {_fmt(m.owned_citation_rate)} | "
-            f"{_fmt(m.earned_citation_rate)} | {_fmt(m.prominence)} | "
-            f"{_fmt_optional(m.mention_sov)} | {_fmt_optional(m.citation_sov)} | "
-            f"{_fmt(m.stability)} |"
+            f"| {m.brand} | {na if search_only else _fmt(m.mention_coverage)} | "
+            f"{_fmt(m.owned_citation_rate)} | {_fmt(m.earned_citation_rate)} | "
+            f"{na if search_only else _fmt(m.prominence)} | "
+            f"{na if search_only else _fmt_optional(m.mention_sov)} | "
+            f"{_fmt_optional(m.citation_sov)} | {na if search_only else _fmt(m.stability)} |"
         )
     out("")
+    if search_only:
+        out("> 本表面为纯搜索结果列表(无生成回答):")
+        out("> 提及覆盖率 / 位置显著度 / 提及 SOV / 稳定性不适用;")
+        out("> 引用类指标 = 品牌是否出现在结果链接中(owned = 自有域名,earned = 第三方页面)。")
+        out("")
     out(
         f"\\* 引用率只计 **verified** 档(口径 `{bundle.tier_basis}`,见下方说明);"
         "位置显著度为 range 区间,非统计区间。"

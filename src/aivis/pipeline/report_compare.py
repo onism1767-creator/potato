@@ -8,7 +8,7 @@
 import html
 
 from aivis.contracts.records import Interval, ScoreBundle
-from aivis.pipeline.report_assets import _HTML_CSS, _LIGHT_LABEL, _fmt
+from aivis.pipeline.report_assets import _HTML_CSS, _LIGHT_LABEL, _fmt, _yesno
 
 _NOTE_ZH = (
     "各表面仅代表其自身引擎与配置(represents that engine only):"
@@ -61,10 +61,6 @@ def _fingerprint_warning(bundles: list[ScoreBundle]) -> str | None:
     if len(fps) <= 1:
         return None
     return "⚠️ 各表面的配置指纹不一致(题库/竞品集/参数不同),并列数字不可直接对照。"
-
-
-def _yesno(v: bool | None) -> str:
-    return "—" if v is None else ("✓" if v else "✗")
 
 
 # ---------------------------------------------------------------- Markdown
