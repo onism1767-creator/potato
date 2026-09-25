@@ -11,8 +11,9 @@ import httpx
 import pytest
 from anthropic.types import Message
 
+from aivis.contracts.adapter import FatalProviderError
 from aivis.contracts.config import FrozenConfig
-from aivis.providers.anthropic import AnthropicAdapter, FatalProviderError
+from aivis.providers.anthropic import AnthropicAdapter
 
 # ---------------------------------------------------------------- 响应构造器
 

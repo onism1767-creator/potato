@@ -6,15 +6,11 @@ from typing import Any
 import pytest
 from google.genai import errors, types
 
+from aivis.contracts.adapter import FatalProviderError
 from aivis.contracts.config import FrozenConfig
 from aivis.contracts.records import RawResponse
 from aivis.providers import catalog
-from aivis.providers.gemini import (
-    _SPECS,
-    FatalProviderError,
-    GeminiAdapter,
-    is_grounding_redirect,
-)
+from aivis.providers.gemini import _SPECS, GeminiAdapter, is_grounding_redirect
 
 REDIRECT = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZ1"
 REDIRECT2 = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZ2"

@@ -20,7 +20,7 @@ from typing import Any, cast
 import anthropic
 from anthropic.types import Message
 
-from aivis.contracts.adapter import ModelInfo
+from aivis.contracts.adapter import FatalProviderError, ModelInfo
 from aivis.contracts.config import FrozenConfig, Question
 from aivis.contracts.records import Citation, ErrorCode, RawResponse
 from aivis.providers import catalog
@@ -108,10 +108,6 @@ def estimate_draft_cost_usd(tier: str = "standard") -> float:
         + 3 * _SEARCH_COST_PER_USE
     )
     return 2 * no_search + search
-
-
-class FatalProviderError(RuntimeError):
-    """会在每次调用复现的不可恢复错误(鉴权/权限/请求格式)→ 中止整批,不烧预算。"""
 
 
 def _utc_now() -> str:

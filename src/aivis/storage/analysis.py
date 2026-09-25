@@ -1,6 +1,7 @@
 """分析层 ③:完全派生的产物(extraction / score bundle / 报告文件),可随版本重算。
 
 目录布局:analysis/<run_id>/extraction.json | score.json | report.md | metrics.csv
+多表面并列对比:analysis/compare/<compare_id>/comparison.md | comparison.html
 """
 
 from pathlib import Path
@@ -39,6 +40,14 @@ class AnalysisStore:
     def write_report_file(self, run_id: str, filename: str, content: str) -> Path:
         """写报告产物(report.md / metrics.csv 等渲染结果)。"""
         path = self._run_dir(run_id) / filename
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def write_comparison(self, compare_id: str, filename: str, content: str) -> Path:
+        """写多表面并列对比产物(analysis/compare/<compare_id>/comparison.md|.html)。"""
+        d = self._root / "compare" / compare_id
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / filename
         path.write_text(content, encoding="utf-8")
         return path
 

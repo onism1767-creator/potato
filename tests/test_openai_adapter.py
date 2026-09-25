@@ -8,10 +8,11 @@ import openai
 import pytest
 from openai.types.responses import Response
 
+from aivis.contracts.adapter import FatalProviderError
 from aivis.contracts.config import FrozenConfig
 from aivis.contracts.records import RawResponse
 from aivis.providers import catalog
-from aivis.providers.openai import _SPECS, FatalProviderError, OpenAIAdapter
+from aivis.providers.openai import _SPECS, OpenAIAdapter
 
 # ---------------------------------------------------------------- 响应构造器
 

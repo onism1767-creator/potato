@@ -286,6 +286,8 @@ def score(
         health=health,
         surface_kind=manifest.surface_kind,
         cost_usd_actual=manifest.cost_usd_actual,
+        temperature_applied=manifest.temperature_applied,
+        region_applied=manifest.region_applied,
     )
 
 

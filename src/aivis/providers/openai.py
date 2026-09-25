@@ -22,7 +22,7 @@ from typing import Any, cast
 import openai
 from openai.types.responses import Response
 
-from aivis.contracts.adapter import ModelInfo
+from aivis.contracts.adapter import FatalProviderError, ModelInfo
 from aivis.contracts.config import FrozenConfig, Question
 from aivis.contracts.records import Citation, ErrorCode, RawResponse
 from aivis.providers import catalog
@@ -55,10 +55,6 @@ _SPECS: dict[str, _ModelSpec] = {
     "gpt-5.6-terra": _ModelSpec(2.0, 12.0, 0.2),
     "gpt-5.6-luna": _ModelSpec(0.2, 1.2, 0.02),
 }
-
-
-class FatalProviderError(RuntimeError):
-    """会在每次调用复现的不可恢复错误(鉴权/权限/请求格式)→ 中止整批,不烧预算。"""
 
 
 def _utc_now() -> str:

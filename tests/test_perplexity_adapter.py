@@ -8,15 +8,11 @@ import perplexity
 import pytest
 from perplexity.generated.api import ResponseCreateResponse, SearchCreateResponse
 
+from aivis.contracts.adapter import FatalProviderError
 from aivis.contracts.config import FrozenConfig
 from aivis.contracts.records import RawResponse
 from aivis.providers import catalog
-from aivis.providers.perplexity import (
-    _SPECS,
-    FatalProviderError,
-    PerplexityAdapter,
-    PerplexitySearchAdapter,
-)
+from aivis.providers.perplexity import _SPECS, PerplexityAdapter, PerplexitySearchAdapter
 
 # ---------------------------------------------------------------- 响应构造器
 

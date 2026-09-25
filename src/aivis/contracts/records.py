@@ -282,6 +282,8 @@ class ScoreBundle(BaseModel):
     # ---- v0.2 多引擎(从 RunManifest 派生,报告/对比页用)----
     surface_kind: str = "answer"  # search_only 时提及类指标不适用,报告如实标注
     cost_usd_actual: float | None = None  # 本表面真实花费(账单)
+    temperature_applied: bool | None = None  # 采样温度是否真的传给了引擎(None=未记录)
+    region_applied: bool | None = None  # 区域参数是否真的传给了引擎(None=未记录)
 
 
 class RunLock(BaseModel):

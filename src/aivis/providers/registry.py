@@ -4,6 +4,9 @@
 SDK 只在对应分支里惰性 import:选 mock 不加载任何付费 SDK,某家 SDK 缺失只影响那一家。
 """
 
+import os
+from collections.abc import Iterable
+
 from aivis.contracts.adapter import ModelInfo, ProviderAdapter, SurfaceSpec
 from aivis.providers.catalog import PROVIDERS, default_model, find_model
 
@@ -42,3 +45,13 @@ def make_adapter(spec: SurfaceSpec, *, tier: str = "standard") -> ProviderAdapte
             return PerplexitySearchAdapter()
         return PerplexityAdapter(model=info.model)
     raise NotImplementedError(f"引擎 {info.provider!r} 的适配器尚未接入")
+
+
+def missing_env_keys(providers: Iterable[str]) -> list[str]:
+    """这些引擎里哪些还缺密钥环境变量(🟥 密钥只经环境变量读取;开跑前查,不烧任何调用)。"""
+    missing: list[str] = []
+    for name in dict.fromkeys(providers):
+        key = PROVIDERS[name].env_key if name in PROVIDERS else ""
+        if key and not os.environ.get(key) and key not in missing:
+            missing.append(key)
+    return missing

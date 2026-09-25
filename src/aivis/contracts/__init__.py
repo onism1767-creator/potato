@@ -5,6 +5,7 @@
 """
 
 from aivis.contracts.adapter import (
+    FatalProviderError,
     ModelInfo,
     ModelStatus,
     ProviderAdapter,
@@ -52,6 +53,7 @@ __all__ = [
     "ErrorCode",
     "EvidenceRecord",
     "ExtractionResult",
+    "FatalProviderError",
     "FrozenConfig",
     "HealthSummary",
     "Intent",

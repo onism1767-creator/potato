@@ -13,12 +13,13 @@ from pydantic import ValidationError
 
 from aivis.configcheck import has_errors, validate_config
 from aivis.configio import load_frozen_config
-from aivis.contracts.adapter import ProviderAdapter
+from aivis.contracts.adapter import FatalProviderError, ProviderAdapter, SurfaceSpec
 from aivis.contracts.checker import UrlChecker
 from aivis.contracts.config import FrozenConfig
 from aivis.pipeline.extract import extract
 from aivis.pipeline.probe import CostGateError, RunLockError, run_probe, utc_now
 from aivis.pipeline.report import render_csv, render_html, render_markdown
+from aivis.pipeline.report_compare import render_comparison_html, render_comparison_markdown
 from aivis.pipeline.score import score
 from aivis.pipeline.verify import (
     HttpHeadChecker,
@@ -26,8 +27,7 @@ from aivis.pipeline.verify import (
     PageFetchChecker,
     verify,
 )
-from aivis.providers.anthropic import AnthropicAdapter, FatalProviderError
-from aivis.providers.mock import MockAdapter
+from aivis.providers import catalog, registry
 from aivis.scaffold import build_scaffold, write_scaffold
 from aivis.storage.analysis import AnalysisStore
 from aivis.storage.evidence import EvidenceStore
@@ -37,18 +37,32 @@ from aivis.storage.raw import RawStore
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="aivis",
-        description="Claude API web-search 可见度(代理测量)——可复现的提及/引用测量框架",
+        description="AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity)"
+        "——可复现的提及/引用测量框架",
     )
     parser.add_argument("--config-dir", type=Path, default=Path("configs/demo"))
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument(
         "--provider",
-        choices=["mock", "anthropic"],
+        choices=sorted(catalog.PROVIDERS),
         default="mock",
-        help="默认 mock(零成本);anthropic 需 ANTHROPIC_API_KEY 且过成本闸门",
+        help="引擎(默认 mock 零成本);真引擎需对应环境变量里的密钥且过成本闸门(见 aivis models)",
     )
     parser.add_argument(
-        "--tier", default="standard", help="模型档位:economy(Haiku)/ standard(Sonnet)/ high(Opus)"
+        "--model",
+        default=None,
+        help="精确模型 id(aivis models 列出全部);缺省取该引擎 --tier 档的默认模型",
+    )
+    parser.add_argument(
+        "--tier",
+        default="standard",
+        help="模型档位便利选项:economy / standard / high(/ flagship);显式 --model 优先",
+    )
+    parser.add_argument(
+        "--surfaces",
+        default=None,
+        help="逗号分隔的 provider:model 列表(如 openai:gpt-6-luna,gemini:gemini-3.8-flash);"
+        "run / estimate 对每个表面各跑一次,最后出并列对比报告与账单(只并列、不混总分)",
     )
     parser.add_argument("--run-id", default=None, help="指定运行 ID(默认:probe 新建/其余取最新)")
     parser.add_argument("--yes", action="store_true", help="非交互确认成本闸门")
@@ -90,6 +104,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "validate",
             "init",
             "estimate",
+            "models",
             "gui",
         ],
     )
@@ -104,10 +119,26 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _surface_specs(args: argparse.Namespace) -> list[SurfaceSpec]:
+    """--surfaces(多表面)优先;否则单表面 = --provider(+ --model / --tier)。"""
+    if args.surfaces:
+        return [SurfaceSpec.parse(s) for s in str(args.surfaces).split(",") if s.strip()]
+    return [SurfaceSpec(provider=args.provider, model=args.model)]
+
+
+def _build_adapters(args: argparse.Namespace) -> list[ProviderAdapter] | None:
+    """按表面构造适配器(引擎名分支只在 providers.registry);表面/模型写错 → 干净报错返回 None。"""
+    try:
+        return [registry.make_adapter(spec, tier=args.tier) for spec in _surface_specs(args)]
+    except (ValueError, NotImplementedError) as e:
+        print(f"[表面/模型错误] {e}(用 aivis models 查看可选表面)", file=sys.stderr)
+        return None
+
+
 def _make_adapter(args: argparse.Namespace) -> ProviderAdapter:
-    if args.provider == "anthropic":
-        return AnthropicAdapter(tier=args.tier)
-    return MockAdapter(tier=args.tier)
+    return registry.make_adapter(
+        SurfaceSpec(provider=args.provider, model=args.model), tier=args.tier
+    )
 
 
 def _resolve_run_id(args: argparse.Namespace, raw: RawStore) -> str:
@@ -119,9 +150,16 @@ def _resolve_run_id(args: argparse.Namespace, raw: RawStore) -> str:
     return manifests[-1].run_id
 
 
-def _cmd_probe(args: argparse.Namespace, cfg: FrozenConfig, raw: RawStore) -> str:
+def _cmd_probe(
+    args: argparse.Namespace,
+    cfg: FrozenConfig,
+    raw: RawStore,
+    *,
+    adapter: ProviderAdapter | None = None,
+    preconfirmed: bool = False,
+) -> str:
     def confirm(cost: float, n_calls: int) -> bool:
-        if args.yes:
+        if args.yes or preconfirmed:
             return True
         answer = input(f"预估成本 ${cost:.2f}({n_calls} 次真实调用),继续?[y/N] ")
         return answer.strip().lower() == "y"
@@ -131,7 +169,12 @@ def _cmd_probe(args: argparse.Namespace, cfg: FrozenConfig, raw: RawStore) -> st
         print(f"PROGRESS probe {done}/{total} {spent:.4f}", flush=True)
 
     manifest = run_probe(
-        _make_adapter(args), cfg, raw, run_id=args.run_id, confirm_cost=confirm, progress=progress
+        adapter if adapter is not None else _make_adapter(args),
+        cfg,
+        raw,
+        run_id=args.run_id,
+        confirm_cost=confirm,
+        progress=progress,
     )
     print(f"probe 完成: run_id={manifest.run_id}  search_count={manifest.search_count}")
     return manifest.run_id
@@ -219,24 +262,122 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
 
 def _cmd_estimate(args: argparse.Namespace, cfg: FrozenConfig) -> int:
-    """开跑前的预算估计:零成本、不联网、不调 API,只算保守上界并对比预算上限。"""
-    adapter = _make_adapter(args)
+    """开跑前的预算估计:零成本、不联网、不调 API;多表面时逐个列出并合计(每表面各自受上限约束)。"""
+    adapters = _build_adapters(args)
+    if adapters is None:
+        return 2
     n_calls = len(cfg.questions) * cfg.n_runs
-    est = adapter.estimate_cost_usd(n_calls, cfg)
     print(f"[预算估计] {args.config_dir}")
-    print(f"  provider/model: {adapter.provider_name} / {adapter.model_name}")
-    print(f"  调用数: {len(cfg.questions)} 题 × {cfg.n_runs} 轮 = {n_calls} 次")
-    print(f"  预估成本(保守上界): ${est:.2f}")
-    print(f"  预算上限 budget_cap_usd: ${cfg.budget_cap_usd:.2f}")
-    if est > cfg.budget_cap_usd:
-        print(f"  [!] 超上限 ${est - cfg.budget_cap_usd:.2f} —— 此运行会被开跑前闸门阻断")
-    else:
-        print(f"  [OK] 在预算内(余量 ${cfg.budget_cap_usd - est:.2f})")
-    print("  注: 真实通常低于上界; 运行中按真实花费硬封顶。")
-    if args.provider == "mock":
+    print(f"  调用数: {len(cfg.questions)} 题 × {cfg.n_runs} 轮 = {n_calls} 次(每个表面)")
+    print(f"  预算上限 budget_cap_usd(每个表面各自受限): ${cfg.budget_cap_usd:.2f}")
+    total = 0.0
+    for adapter in adapters:
+        est = adapter.estimate_cost_usd(n_calls, cfg)
+        total += est
+        flag = "  [!] 超上限,会被开跑前闸门阻断" if est > cfg.budget_cap_usd else "  [OK]"
         print(
-            "  (当前 mock 估为 0;看真实价请加 --provider anthropic [--tier economy|standard|high])"
+            f"  - {adapter.provider_name}:{adapter.model_name}  预估(保守上界) ≈ ${est:.2f}{flag}"
         )
+    print(f"  合计(保守上界): ${total:.2f}")
+    print("  注: 真实通常低于上界; 运行中按真实花费硬封顶。")
+    if all(a.provider_name == "mock" for a in adapters):
+        print("  (当前 mock 估为 0;看真实价请加 --provider/--model 或 --surfaces,见 aivis models)")
+    return 0
+
+
+def _cmd_models(args: argparse.Namespace, cfg: FrozenConfig) -> int:
+    """列出全部可测表面(模型目录)+ 按当前配置的预估成本(零成本、不联网)。"""
+    n_calls = len(cfg.questions) * cfg.n_runs
+    print(f"[模型目录] {len(catalog.MODELS)} 个表面;预估按当前配置 {n_calls} 次调用/表面(保守上界)")
+    for provider, pinfo in catalog.PROVIDERS.items():
+        key = pinfo.env_key or "(不需要)"
+        print(
+            f"\n{pinfo.label}  --provider {provider}  密钥环境变量: {key}  只发往: {pinfo.endpoint}"
+        )
+        for m in catalog.list_models(provider):
+            adapter = registry.make_adapter(SurfaceSpec(provider=provider, model=m.model))
+            est = adapter.estimate_cost_usd(n_calls, cfg)
+            flags = []
+            if not m.supports_temperature:
+                flags.append("no-temperature")
+            if not m.supports_region:
+                flags.append("no-region")
+            if not m.pinned:
+                flags.append("unpinned")
+            if m.surface_kind == "search_only":
+                flags.append("search-only")
+            print(
+                f"  {m.model:<26} {m.label:<36} {m.tier:<9} {m.status:<8} "
+                f"≈ ${est:>7.2f}  {' '.join(flags)}"
+            )
+    return 0
+
+
+def _cmd_run(
+    args: argparse.Namespace,
+    cfg: FrozenConfig,
+    raw: RawStore,
+    analysis: AnalysisStore,
+    evidence_store: EvidenceStore,
+) -> int:
+    """run:单表面 = 五段依次全跑;多表面(--surfaces)= 每个表面独立 run_id 各跑一遍,
+    最后出并列对比报告(只并列、不混总分)+ 账单。开跑前查齐密钥、列出各表面预估与合计并确认一次。"""
+    adapters = _build_adapters(args)
+    if adapters is None:
+        return 2
+    multi = args.surfaces is not None
+    if multi and args.run_id:
+        print("[参数错误] 多表面运行不支持 --run-id 续跑(每个表面独立 run_id)", file=sys.stderr)
+        return 2
+    missing = registry.missing_env_keys(a.provider_name for a in adapters)
+    if missing:
+        print(
+            f"[引擎错误] 缺少密钥环境变量: {', '.join(missing)}"
+            "(密钥只经环境变量读取,不写代码/配置;GUI 密钥框会自动注入)",
+            file=sys.stderr,
+        )
+        return 4
+    if multi:
+        n_calls = len(cfg.questions) * cfg.n_runs
+        ests = [(a, a.estimate_cost_usd(n_calls, cfg)) for a in adapters]
+        total = sum(e for _, e in ests)
+        print(
+            f"[多表面运行] {len(adapters)} 个表面,每个 {n_calls} 次调用;"
+            f"预算上限每表面 ${cfg.budget_cap_usd:.2f}"
+        )
+        for a, e in ests:
+            flag = "  [!] 超上限,该表面会被闸门阻断" if e > cfg.budget_cap_usd else ""
+            print(f"  - {a.provider_name}:{a.model_name}  ≈ ${e:.2f}{flag}")
+        print(f"  合计(保守上界) ≈ ${total:.2f}")
+        if total > 0 and not args.yes:
+            answer = input(f"以上合计预估 ${total:.2f},继续?[y/N] ")
+            if answer.strip().lower() != "y":
+                raise CostGateError("用户未确认多表面运行的合计预估,已取消。")
+    bundles = []
+    for i, adapter in enumerate(adapters, 1):
+        if multi:
+            label = f"{adapter.provider_name}:{adapter.model_name}"
+            print(f"PROGRESS surface {i}/{len(adapters)} {label}", flush=True)
+        run_id = _cmd_probe(args, cfg, raw, adapter=adapter, preconfirmed=multi)
+        _cmd_extract(run_id, cfg, raw, analysis)
+        _cmd_verify(args, run_id, cfg, analysis, evidence_store)
+        _cmd_score(run_id, cfg, raw, analysis, evidence_store)
+        _cmd_report(run_id, cfg, analysis)
+        bundles.append(analysis.read_bundle(run_id))
+    if multi:
+        stamp = utc_now().replace("-", "").replace(":", "")
+        cid = f"{stamp}-{bundles[0].run_id[:8]}"
+        md = analysis.write_comparison(cid, "comparison.md", render_comparison_markdown(bundles))
+        page = analysis.write_comparison(cid, "comparison.html", render_comparison_html(bundles))
+        print("账单(真实累计花费,按各表面清单):")
+        spent = 0.0
+        for b in bundles:
+            cost = b.cost_usd_actual or 0.0
+            spent += cost
+            print(f"BILL {b.provider}:{b.model} {cost:.4f}", flush=True)
+        print(f"  合计 ${spent:.4f}")
+        print(f"COMPARISON {page}", flush=True)
+        print(f"对比报告: {md}\n          {page}")
     return 0
 
 
@@ -274,6 +415,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_validate(args, cfg)
     if args.command == "estimate":  # 预算估计,零成本不联网
         return _cmd_estimate(args, cfg)
+    if args.command == "models":  # 模型目录 + 预估,零成本不联网
+        return _cmd_models(args, cfg)
     raw = RawStore(args.data_dir / "raw")
     evidence_store = EvidenceStore(args.data_dir / "evidence")
     analysis = AnalysisStore(args.data_dir / "analysis")
@@ -289,12 +432,8 @@ def main(argv: list[str] | None = None) -> int:
             _cmd_score(_resolve_run_id(args, raw), cfg, raw, analysis, evidence_store)
         elif args.command == "report":
             _cmd_report(_resolve_run_id(args, raw), cfg, analysis)
-        else:  # run:五段依次全跑
-            run_id = _cmd_probe(args, cfg, raw)
-            _cmd_extract(run_id, cfg, raw, analysis)
-            _cmd_verify(args, run_id, cfg, analysis, evidence_store)
-            _cmd_score(run_id, cfg, raw, analysis, evidence_store)
-            _cmd_report(run_id, cfg, analysis)
+        else:  # run:单表面五段全跑 / 多表面串跑 + 并列对比
+            return _cmd_run(args, cfg, raw, analysis, evidence_store)
     except CostGateError as e:
         print(f"[成本闸门] {e}", file=sys.stderr)
         return 2

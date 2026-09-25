@@ -13,6 +13,15 @@ from aivis.contracts.config import FrozenConfig, Question
 from aivis.contracts.records import RawResponse
 
 ModelStatus = Literal["current", "legacy", "preview"]
+
+
+class FatalProviderError(RuntimeError):
+    """适配器抛出的不可恢复错误(缺密钥/鉴权/权限/请求格式):会逐调用复现 → 调用方中止整批,不烧预算。
+
+    瞬时错误(限速/超时/5xx)**不**用此类:适配器把它们记成 finished_ok=False 的 RawResponse 继续跑。
+    """
+
+
 # answer=生成回答+引用(可测提及与引用);search_only=纯搜索结果列表,无回答文本(提及类指标不适用)
 SurfaceKind = Literal["answer", "search_only"]
 
