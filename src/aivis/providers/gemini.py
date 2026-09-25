@@ -44,11 +44,13 @@ _SURFACE_ID = "gemini_generate_content_google_search"
 # 保守:全部按付费计(免费额度是否用完本工具不知道)。
 _GROUNDING_COST_PER_QUERY = 14.0 / 1000.0
 _MAX_OUTPUT_TOKENS = 8192
-# 估算口径(未校准,保守上界):无 max_uses 可钉,按每次调用 5 次搜索;每次搜索约 1.2 万输入 token
-_EST_QUERIES_PER_CALL = 5
-_EST_BASE_INPUT_TOKENS = 2000
-_EST_INPUT_TOKENS_PER_SEARCH = 12000
-_EST_OUTPUT_TOKENS = 4000  # thinking token 计入输出
+# 估算口径(2026-09-25 真机校准,5 个模型各 1 次):Gemini 的 grounding 不把搜索结果算进输入 token
+# (prompt_token_count 13~1011),花费主要是输出(正文 ~1.4k + thoughts 0.6k~2.3k)与每次搜索 $0.014;
+# 实测每调用 0~3 次搜索,无 max_uses 可钉 → 按 4 次取上界
+_EST_QUERIES_PER_CALL = 4
+_EST_BASE_INPUT_TOKENS = 1000
+_EST_INPUT_TOKENS_PER_SEARCH = 500
+_EST_OUTPUT_TOKENS = 4000  # 正文 + thinking(实测上限 ~3.9k)
 _REDIRECT_HOST_SUFFIX = "vertexaisearch.cloud.google.com"
 _REDIRECT_MAX_HOPS = 3
 _REDIRECT_TIMEOUT_S = 8.0
@@ -241,6 +243,8 @@ class GeminiAdapter:
             tools=[types.Tool(google_search=types.GoogleSearch())],
             temperature=cfg.temperature,
             max_output_tokens=_MAX_OUTPUT_TOKENS,
+            # google_search 是服务端工具,客户端自动函数调用用不着;关掉以免 SDK 每次打 AFC 告警
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
 
     # ------------------------------------------------------------------ 解析

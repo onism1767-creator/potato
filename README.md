@@ -94,6 +94,7 @@ Each engine is its own **measurement surface**: it gets its own report, its own 
 - *no region* — the API has no region parameter (Gemini);
 - *underlying model changes* — Perplexity's official presets run an OpenAI model that auto-updates and cannot be pinned (the manifest records the actual model each run);
 - *search only* — Perplexity's Search API returns result links with **no generated answer**, so mention metrics do not apply (citation metrics still do);
+- *Perplexity Sonar* (Agent API) answered **without inline citation markers** in our smoke run, so its citation metrics may read 0 while mention metrics work; the presets do carry `[web:n]` markers;
 - Gemini returns Google redirect links instead of real URLs; Potato resolves them by reading only the redirect header (no page fetch) so owned / earned attribution still works, and keeps the original link in the raw record.
 
 The engine is **provider-agnostic by design**: every model sits behind one adapter interface, the model catalog lives in one file, and there are no model-specific branches in the pipeline — **you can add an engine by writing one adapter**.

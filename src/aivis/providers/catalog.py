@@ -203,7 +203,9 @@ MODELS: tuple[ModelInfo, ...] = (
         "perplexity/sonar",
         "Sonar",
         "economy",
-        "Perplexity's own Sonar model via the Agent API (pinned model id).",
+        "Perplexity's own Sonar model via the Agent API (pinned model id). "
+        "Smoke (2026-09): its answers carried no inline citation markers, so citation "
+        "metrics may read 0 while mention metrics work.",
     ),
     _m(
         "perplexity",
@@ -213,6 +215,7 @@ MODELS: tuple[ModelInfo, ...] = (
         "Official replacement for sonar-pro: Agent API preset 'low'. "
         "Underlying model is an OpenAI model and auto-updates; not pinnable.",
         pinned=False,
+        supports_temperature=False,
     ),
     _m(
         "perplexity",
@@ -222,6 +225,7 @@ MODELS: tuple[ModelInfo, ...] = (
         "Official replacement for sonar-reasoning-pro: Agent API preset 'medium'. "
         "Underlying model is an OpenAI model and auto-updates; not pinnable.",
         pinned=False,
+        supports_temperature=False,
     ),
     _m(
         "perplexity",

@@ -2,8 +2,10 @@
 
 要点(CLAUDE.md §4/§5/§6):
   - 单轮 clean-room 调用:无 instructions、无历史;`store=False` 不在 OpenAI 侧留存;
-  - 引用 = `message` 输出项里 `output_text.annotations[type=url_citation]`(url/title/起止位置),
-    `cited_text` 取回答里被标注的那段;`web_search_call` 项计搜索次数,其 status=failed → 失败;
+  - 引用 = `message` 输出项里 `output_text.annotations[type=url_citation]`(url/title/起止位置);
+    真机观察(2026-09):标注区间通常只盖住行内链接标记 "([site](url))",不是论述句,
+    故 `cited_text` 取标记**之前**的那句话(论述句 + 标记本身),供 earned 归属按清晰名匹配;
+    `web_search_call` 项计搜索次数,其 status=failed → 失败;
   - `max_tool_calls` = cfg.max_uses(bounded run);`user_location.country` = cfg.region;
   - 目录里的 GPT-5.6 / GPT-6 系列均为推理模型,不接受 temperature(catalog 已标注);
   - 成本按 provider × model 取价:token(含缓存分级)+ web search $10/千次;估算参数**未经真机校准**,
@@ -15,6 +17,7 @@
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -59,6 +62,23 @@ _SPECS: dict[str, _ModelSpec] = {
 
 def _utc_now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+_SENTENCE_BREAK = re.compile(r"[.!?。!?]\s+|\n+")
+_CITED_MAX_CHARS = 400
+
+
+def _cited_span(text: str, start: int, end: int) -> str | None:
+    """标注区间 → 引用片段:区间本身若只是链接标记(以 ( 或 [ 开头),则向前补上它所支撑的那句话。"""
+    if not (0 <= start <= end <= len(text)):
+        return None
+    span = text[start:end]
+    if not span.lstrip().startswith(("(", "[")):
+        return span or None
+    head = text[max(0, start - _CITED_MAX_CHARS) : start]
+    breaks = list(_SENTENCE_BREAK.finditer(head))
+    sentence = head[breaks[-1].end() :] if breaks else head
+    return (sentence + span).strip() or None
 
 
 class OpenAIAdapter:
@@ -207,10 +227,7 @@ class OpenAIAdapter:
                     for ann in part.annotations or []:
                         if ann.type != "url_citation":
                             continue
-                        start, end = ann.start_index, ann.end_index
-                        cited = (
-                            part.text[start:end] if 0 <= start <= end <= len(part.text) else None
-                        )
+                        cited = _cited_span(part.text, ann.start_index, ann.end_index)
                         citations.append(
                             Citation(
                                 url=ann.url,

@@ -157,8 +157,22 @@ provider:model → 适配器的唯一工厂,也是全仓库唯一按引擎名分
   **Search API** 是纯搜索表面:answer_text 恒空、每条结果一条引用(cited_text=摘要),提及类指标
   在 score/报告里标"不适用",引用类指标照常;$5/千次固定价;两个表面共用一把 key。
 
-**估算口径**:Anthropic 的每搜索 1.2 万输入 token 是 2026-06 真机校准值;其余三家先沿用该口径作保守上界
-并在代码里标注"未校准",真机跑后按 usage 校准。
+**估算口径**:Anthropic 的每搜索 1.2 万输入 token 是 2026-06 真机校准值;OpenAI 实测同量级(沿用);
+Gemini 已按 2026-09-25 真机校准(见下);Perplexity 以 API 自报 cost 为准。
+
+**真机冒烟定论(2026-09-25,每个表面 1 次调用、max_uses=2,合计 ≈ $1.8)**:
+- 全部 21 个真实表面请求形状正确;Claude 5.x(Sonnet 5 / Opus 5 / Fable 5.1)**接受经典版 `web_search_20250305`**
+  且内联引用正常(16~18 条),Fable 单次 ≈ $0.23、Opus 5 ≈ $0.18、Sonnet 5 ≈ $0.09;
+- 模型可以选择不搜索:Haiku 4.5 与 Gemini 3.8 Flash 各有一次"凭常识作答"(searches=0、cites=0)——这是该表面的
+  真实行为,如实记录,不补搜;
+- OpenAI 的 `url_citation` 标注区间只盖住行内链接标记 "([site](url))",故 cited_text 取标记之前的论述句;
+  每次调用 ≈ 2.1~2.2 万输入 token(与 Anthropic 的每搜索 1.2 万口径一致);GPT-6 Astra 单次 ≈ $0.31;
+- Gemini 跳转链接 33/33 全部解析成真实网址;grounding 不把搜索结果算进输入 token(prompt 13~1011),
+  估算口径已按此校准(基础 1000 + 每搜索 500,每调用按 4 次搜索取上界);
+- Perplexity:`perplexity/sonar` 的回答**没有内联引用标注也没有 [n] 标记**(search_results 有 15 条但按保守计数不算引用)
+  → 该表面引用类指标可能为 0,目录 blurb 已注明;预设档回答带 `[web:n]` 标记(按结果 id 映射);
+  预设档 `temperature` 与 `max_output_tokens` 同给会 400 → 预设档不传温度(supports_temperature=False);
+  用量明细键名实测为 `search_web`;Search API 1.1s 返回 10 条,$0.005。
 
 **FatalProviderError 统一在 contracts.adapter**:缺密钥 / 鉴权 / 权限 / 请求格式错误会逐调用复现 → 中止整批;
 瞬时错误(限速 / 超时 / 5xx)记成 finished_ok=False 的 RawResponse 继续跑。多表面运行开跑前先查齐各家

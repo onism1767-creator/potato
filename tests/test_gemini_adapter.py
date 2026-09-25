@@ -107,7 +107,7 @@ def test_catalog_and_specs_agree() -> None:
         GeminiAdapter(model="gemini-9", redirect_resolver=None)
 
 
-def test_estimate_assumes_five_searches_per_call(demo_cfg: FrozenConfig) -> None:
+def test_estimate_assumes_four_searches_per_call(demo_cfg: FrozenConfig) -> None:
     n = 10
     flash = GeminiAdapter(model="gemini-3.8-flash", redirect_resolver=None).estimate_cost_usd(
         n, demo_cfg
@@ -116,8 +116,8 @@ def test_estimate_assumes_five_searches_per_call(demo_cfg: FrozenConfig) -> None
         n, demo_cfg
     )
     assert 0 < flash < pro
-    input_tokens = 2000 + 5 * 12000
-    per_call = input_tokens / 1e6 * 0.75 + 4000 / 1e6 * 3.75 + 5 * 0.014
+    input_tokens = 1000 + 4 * 500  # 2026-09 真机校准口径
+    per_call = input_tokens / 1e6 * 0.75 + 4000 / 1e6 * 3.75 + 4 * 0.014
     assert flash == pytest.approx(n * per_call)
 
 

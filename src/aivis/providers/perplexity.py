@@ -9,7 +9,8 @@
 
 要点(CLAUDE.md §4/§5/§6):
   - Agent API 单轮 clean-room:无 instructions;`store=False`;`max_steps`=max_uses(bounded);
-    `web_search` 工具带 user_location.country=region;temperature 照传(文档接受);
+    `web_search` 工具带 user_location.country=region;显式 model 传 temperature,预设档不传
+    (底层 OpenAI 推理模型,与 max_output_tokens 同给会 400);
   - 引用 = message 输出项 output_text.annotations[url_citation](起止位置 → cited_text);
     若无标注但正文有 [n] / [web:n] 标记,则按标记映射 search_results 的结果 id(保守:未被标记引用的
     结果只是搜索结果,不算引用);搜索次数取 usage.tool_calls_details.web_search.invocation;
@@ -19,6 +20,7 @@
   - 密钥只经环境变量 PERPLEXITY_API_KEY 读取(两个表面共用一把);鉴权/请求格式错误 → 立即中止整批。
 
 唯一网络触点是各类的 _send();单元测试以替身覆盖,离线、零成本。
+原样入档用 model_dump(warnings=False):SDK 的输出项联合类型在序列化时会打无害告警。
 """
 
 import json
@@ -222,12 +224,14 @@ class PerplexityAdapter:
             "tools": [tool],
             "store": False,
             "max_output_tokens": _MAX_OUTPUT_TOKENS,
-            "temperature": cfg.temperature,
         }
         if self._spec.preset is not None:
+            # 真机观察(2026-09):预设档底层是 OpenAI 推理模型,temperature 与 max_output_tokens
+            # 同给会 400;预设档不传温度(目录 supports_temperature=False,清单如实记 applied=False)
             params["preset"] = self._spec.preset
         else:
             params["model"] = self._model
+            params["temperature"] = cfg.temperature
         if cfg.max_uses is not None:
             params["max_steps"] = cfg.max_uses  # bounded run
         return params
@@ -290,7 +294,10 @@ class PerplexityAdapter:
         usage = response.usage
         invocations = None
         if usage is not None and usage.tool_calls_details:
-            ws = usage.tool_calls_details.get("web_search")
+            # 真机观察(2026-09):键名为 search_web(文档写 web_search),两者都认
+            ws = usage.tool_calls_details.get("search_web") or usage.tool_calls_details.get(
+                "web_search"
+            )
             invocations = ws.invocation if ws is not None else None
         search_count = invocations if invocations is not None else n_search_items
 
@@ -317,7 +324,9 @@ class PerplexityAdapter:
             error_code=error_code,
             error_detail=error_detail,
             raw_json=json.dumps(
-                {"response": response.model_dump(mode="json")}, ensure_ascii=False, sort_keys=True
+                {"response": response.model_dump(mode="json", warnings=False)},
+                ensure_ascii=False,
+                sort_keys=True,
             ),
             timestamp=_utc_now(),
         )
@@ -401,7 +410,9 @@ class PerplexitySearchAdapter:
             model=_SEARCH_MODEL_ID,
             finished_ok=True,
             raw_json=json.dumps(
-                {"response": response.model_dump(mode="json")}, ensure_ascii=False, sort_keys=True
+                {"response": response.model_dump(mode="json", warnings=False)},
+                ensure_ascii=False,
+                sort_keys=True,
             ),
             timestamp=_utc_now(),
         )

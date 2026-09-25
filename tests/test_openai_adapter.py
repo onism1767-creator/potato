@@ -262,3 +262,20 @@ def test_missing_api_key_fails_fast(
         OpenAIAdapter(model="gpt-6-luna").ask(
             demo_cfg.questions[0], demo_cfg, run_id="r1", run_index=0
         )
+
+
+def test_cited_span_expands_link_marker_to_preceding_sentence() -> None:
+    """真机观察:标注区间只盖住 "([site](url))" 链接标记 → cited_text 补上它支撑的那句话。"""
+    from aivis.providers.openai import _cited_span
+
+    text = (
+        "Intro sentence. The Osprey Atmos is the top pick ([osprey.com](https://osprey.com/x)). Nx."
+    )
+    start = text.index("([osprey.com]")
+    end = text.index("). Nx.") + 1
+    assert _cited_span(text, start, end) == (
+        "The Osprey Atmos is the top pick ([osprey.com](https://osprey.com/x))"
+    )
+    # 区间本身就是论述句 → 原样返回;越界 → None
+    assert _cited_span(text, 0, 15) == "Intro sentence."
+    assert _cited_span(text, 5, 999) is None

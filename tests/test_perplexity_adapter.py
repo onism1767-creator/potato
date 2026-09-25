@@ -28,7 +28,7 @@ def _usage(total_cost: float | None = 0.0031, invocations: int | None = 2) -> di
             "total_cost": total_cost,
         }
     if invocations is not None:
-        u["tool_calls_details"] = {"web_search": {"invocation": invocations}}
+        u["tool_calls_details"] = {"search_web": {"invocation": invocations}}  # 真机键名
     return u
 
 
@@ -240,10 +240,11 @@ def test_request_params_agent(demo_cfg: FrozenConfig) -> None:
     assert p["input"] == demo_cfg.questions[0].text and "instructions" not in p
     assert p["store"] is False and p["max_steps"] == demo_cfg.max_uses
     assert p["tools"] == [{"type": "web_search", "user_location": {"country": "US"}}]
-    assert p["temperature"] == demo_cfg.temperature
+    assert "temperature" not in p  # 预设档:底层 OpenAI 推理模型,与 max_output_tokens 同给会 400
     explicit = FakeAgent([_response([_message("x", [])])])
     _ask(explicit, demo_cfg)
     assert explicit.sent[0]["model"] == "perplexity/sonar" and "preset" not in explicit.sent[0]
+    assert explicit.sent[0]["temperature"] == demo_cfg.temperature
 
 
 # ---------------------------------------------------------------- Agent API 失败路径
