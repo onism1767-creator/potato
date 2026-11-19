@@ -48,6 +48,7 @@ _PROVIDER_HOST = {
     "openai": "api.openai.com",
     "gemini": "generativelanguage.googleapis.com",
     "perplexity": "api.perplexity.ai",
+    "grok": "api.x.ai",
 }
 _SEARCH_ONLY_NOTE_EN = (
     "Search-only surface: this engine returns search results (title / URL / snippet) with no "

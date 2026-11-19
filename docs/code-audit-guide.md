@@ -98,7 +98,7 @@ probe → ①raw               ├─→ score(纯)→ report(渲染)
 4. 测试:`tools/regen_golden.py` 重生成黄金 + `python tools/regen_examples.py` 重生成 HTML 样张;人工核对 diff;说明口径。
 - 护栏:黄金测试红(口径变)+ mypy 红(字段缺)= 改漏了当场知道。
 
-### 3.2 加一个引擎(v0.2 起四家已接:anthropic / openai / gemini / perplexity)
+### 3.2 加一个引擎(已接五家:anthropic / openai / gemini / perplexity / grok;grok 复用 openai SDK,第 4 步无新依赖)
 1. `providers/catalog.py`:加 `ProviderInfo`(密钥环境变量名 + 唯一发往主机)和各模型的 `ModelInfo`
    (含诚实标记:supports_temperature / supports_region / pinned / surface_kind)+ 档位默认表。
 2. `providers/<engine>.py`:写一个类实现 `ProviderAdapter`(provider_name/model_name/info/ask/

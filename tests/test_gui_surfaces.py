@@ -56,13 +56,19 @@ def _wait(runner: Runner, timeout: float = 120.0) -> dict[str, Any]:
 # ---------------------------------------------------------------- /api/models
 
 
-def test_models_lists_four_real_providers_with_estimates() -> None:
+def test_models_lists_all_real_providers_with_estimates() -> None:
     out = api.models(_BASE)
     names = [p["name"] for p in out["providers"]]
-    assert names == ["anthropic", "openai", "gemini", "perplexity"]  # mock 不在"真实测量"清单里
+    assert names == [
+        "anthropic",
+        "openai",
+        "gemini",
+        "perplexity",
+        "grok",
+    ]  # mock 不在"真实测量"清单里
     assert out["n_calls"] == 2 * 3 and out["budget_cap_usd"] == 13.0
     total = sum(len(p["models"]) for p in out["providers"])
-    assert total == 21  # 6 + 6 + 5 + 4
+    assert total == 27  # 6 + 6 + 5 + 4 + 6
     for p in out["providers"]:
         assert p["env_key"] and p["endpoint"]
         for m in p["models"]:
@@ -183,4 +189,4 @@ def test_server_report_by_surface_index(server: GuiServer) -> None:
     code, _ = _req(server, "/report?surface=9", token=server.token)
     assert code == 404
     code, text = _req(server, "/api/models", method="POST", token=server.token, body=_BASE)
-    assert code == 200 and len(json.loads(text)["providers"]) == 4
+    assert code == 200 and len(json.loads(text)["providers"]) == 5

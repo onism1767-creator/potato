@@ -8,7 +8,7 @@
 
 ## 0. 一句话项目定位（先理解再动手）
 
-本项目是一个**开源的 Claude Skill（SKILL.md）+ 命令行工具（CLI）+ 本地图形向导**，用来测量一个品牌/网站在 **AI web-search 回答**（v0.2 起：Claude / OpenAI / Gemini / Perplexity 四家，每家若干模型，每个 provider×model 是一个独立**测量表面**）中被**提及（mention）**和**被引用（citation）**的频率与结构。
+本项目是一个**开源的 Claude Skill（SKILL.md）+ 命令行工具（CLI）+ 本地图形向导**，用来测量一个品牌/网站在 **AI web-search 回答**（v0.2 起：Claude / OpenAI / Gemini / Perplexity 四家，2026-11 加 Grok，每家若干模型，每个 provider×model 是一个独立**测量表面**）中被**提及（mention）**和**被引用（citation）**的频率与结构。
 
 它的本质是一个 **可复现的代理测量框架（reproducible proxy measurement framework）**：
 - **不是**爬虫；是反复用一批冻结的问题去"问"AI，收集回答 + 引用 URL，再用**确定性规则**打分。
@@ -128,7 +128,7 @@ ai-visibility/
   src/aivis/
     contracts/         # 🟥 载重墙：records.py / adapter.py / config.py（先写、冻结）
     providers/         # catalog.py（模型目录，纯数据）/ registry.py（唯一工厂）/ mock.py /
-                       # anthropic.py / openai.py / gemini.py / perplexity.py（每家一个适配器）
+                       # anthropic.py / openai.py / gemini.py / perplexity.py / grok.py（每家一个适配器）
     pipeline/          # probe.py / extract.py(纯) / verify.py / score.py(纯) / report.py /
                        # report_compare.py（多表面并列对比，纯渲染）
     stats/             # wilson.py / bootstrap.py / sequential.py（全纯）
@@ -188,6 +188,8 @@ CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `m
 ## 11. 版本范围（🟧 会随产品决策更新；当前锁定如下）
 
 **v0.2 已做（2026-09，多引擎）**：四家真引擎适配器（Claude 6 / OpenAI 6 / Gemini 5 / Perplexity 4，含 Search API 纯搜索表面）· 模型目录 + 注册表 · `--model` / `--surfaces` 多表面串跑 · 并列对比报告（只并列不混总分）· 账单（清单记真实花费）· 清单诚实字段（温度/区域是否生效、表面类型）· GUI 多选引擎 + 每家密钥框 + 合计预估 · `models` 子命令。**未做**：跨引擎并行跑（串行）· 整批总预算上限（仍是每表面各自受限）· Gemini Interactions API（仍用 generateContent）。
+
+**v0.2 之后的增量（2026-11）**：第五家 Grok（xAI，6 个表面，共 30 个表面）——复用 `openai` SDK 指向 `api.x.ai`，未加依赖；只开 `web_search`（不开 `x_search`）；无区域参数；零宽"浏览来源"标注不算引用。详见 ARCHITECTURE §11。
 
 **v0.1 要做（IN，已完成）**：`contracts/` 全部冻结类型；`mock` 适配器；三类数据存储（raw 只追加，JSONL+SQLite 即可）；`probe→extract→verify→score→report` 在 mock 上端到端跑通，产出最简真实的 **Markdown + CSV** 报告；`extract`（owned/earned + 保守计数）与 `score`（六指标 + Wilson 区间）真实实现 + 黄金测试；`verify` 最小版（URL 规范化 + 可达性 + 来源分类 + 三档标签，**不含真页面抓取摘录**）；薄 CLI；`configs/demo/` 5 品牌中立 demo；CI 绿。
 

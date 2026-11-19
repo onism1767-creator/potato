@@ -177,3 +177,35 @@ Gemini 已按 2026-09-25 真机校准(见下);Perplexity 以 API 自报 cost 为
 **FatalProviderError 统一在 contracts.adapter**:缺密钥 / 鉴权 / 权限 / 请求格式错误会逐调用复现 → 中止整批;
 瞬时错误(限速 / 超时 / 5xx)记成 finished_ok=False 的 RawResponse 继续跑。多表面运行开跑前先查齐各家
 密钥环境变量,缺则不发任何调用直接退出。
+
+## 11. Grok(xAI)接入决策(2026-11-19,第五家,6 个表面 → 共 30 个表面)
+
+**不加依赖**:xAI 的 Responses API 与 OpenAI 同形,官方文档示例就用 `openai` SDK 指向 `api.x.ai/v1`。
+`providers/grok.py` 复用白名单里已有的 `openai` SDK,只换主机与密钥(`XAI_API_KEY`);建好客户端后把
+SDK 从环境读到的 OpenAI 组织 / 项目 ID 清掉(否则会作为请求头发给 x.ai)。pipeline / GUI / CLI 零改动
+(GUI 密钥框与模型卡由目录驱动)。
+
+**表面定义**:只开 `web_search`,不开 `x_search`——本项目测"联网搜索回答",X 站内搜索是另一种表面,
+要测需单独立项。目录收 6 个:grok-4.20-0309-non-reasoning / -reasoning、4.3、4.5、4.6、4.7
+(id 与单价核自 `GET /v1/language-models`);未收 grok-build-0.1(编码模型)与 grok-4.20-multi-agent。
+推理强度用各模型默认,不干预。
+
+**诚实标记**:xAI 的 web_search 没有区域参数 → 全部 `supports_region=False`(清单 `region_applied=False`);
+temperature 可传且被回显 → `supports_temperature=True`。
+
+**真机定论(6 个表面各 1 次 + 3 次探针,合计 ≈ $0.87)**:
+- 行内引用标注(`url_citation`)的区间只盖住标记 `[[n]](url)`,`title` 只是序号 → cited_text 取标记之前
+  它所支撑的那句话(连续标记共用一句;片段里不留任何标记 / URL),title 记 None;
+- 🟥 **grok-4.7 两次回答都没写行内标记**,此时返回的是一批**零宽标注**(start=end=0、title=url、
+  48~53 条)= 代理浏览过的全部来源,不是回答引用的来源 → **保守计数,不算引用**(与 Perplexity
+  "未被标记引用的结果不算引用"同口径;原样留在 raw_json)。所以 grok-4.7 的引用类指标可能为 0、
+  提及类指标正常,目录 blurb 已注明。4.20 ~ 4.6 有行内引用(7~30 条 / 3~12 个不同网址);
+- `max_turns`(= max_uses)卡的是代理轮数不是工具调用数:一轮可并行多搜,`open_page` 同样按
+  $5/千次计费,max_turns=3 时计费调用 3~8 次、输入 2.1 万~11.1 万 token。`max_tool_calls` 被 xAI
+  忽略(实测传 3 仍调 6 次)→ 不传,不假装有这个上限;`include:["inline_citations"]` 被 400 拒绝;
+- 估算第一版照搬"每搜索 1.2 万 token"口径,被真机打穿(6 个表面 5 个超估算)→ 改按轮估:
+  每轮 4 万输入 + 3 次计费调用、输出 5000,对全部 8 次真实调用都是上界(实际 = 估算的 22%~62%),
+  并有回归测试钉住。代价:demo 配置(72 次调用)下 Grok 各表面估算 ≈ $15~23,超默认
+  budget_cap=13 会被开跑前闸门拦下——这是如实结果(grok-4.7 真实单价 × 72 ≈ $14 本就超线);
+- 实际花费取 API 自报的 `usage.cost_in_usd_ticks`(1e10 ticks = $1),与"单价表 + 工具费"回退算法
+  对账一致;xAI 对坏密钥返 **400**(不是 401)、未知模型返 404,两者都中止整批。

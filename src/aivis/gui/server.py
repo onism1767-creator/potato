@@ -34,7 +34,7 @@ _POST_ENDPOINTS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "/api/validate": api.validate,
     "/api/estimate": api.estimate,
     "/api/tiers": api.tiers,  # 三档 run 成本总览(旧接口,保留)
-    "/api/models": api.models,  # 四家全部表面 + 预估("选测哪些 AI")
+    "/api/models": api.models,  # 各家全部表面 + 预估("选测哪些 AI")
     "/api/draft_estimate": api.draft_estimate,  # AI 起草这一步的成本上界
 }
 

@@ -1,8 +1,8 @@
-"""catalog —— 四家引擎的模型目录(单一真相源;纯数据,不 import 任何 SDK)。
+"""catalog —— 五家引擎的模型目录(单一真相源;纯数据,不 import 任何 SDK)。
 
 GUI 的"选测哪些 AI"、CLI 的 `aivis models`、注册表的默认档位都从这里读。
 单价与计价逻辑**不在此**:按 CLAUDE.md §6.3 由各适配器模块按 usage 计价。
-模型 id 均对照官方模型页核实(2026-09-22);status:
+模型 id 均对照官方模型页核实(前四家 2026-09-22;Grok 2026-11-19);status:
   current = 官方现役;legacy = 官方总览页已下架但接口仍可调(随时可能停);preview = 预览版。
 """
 
@@ -38,6 +38,12 @@ PROVIDERS: dict[str, ProviderInfo] = {
         label="Perplexity",
         env_key="PERPLEXITY_API_KEY",
         endpoint="api.perplexity.ai",
+    ),
+    "grok": ProviderInfo(
+        name="grok",
+        label="Grok (xAI)",
+        env_key="XAI_API_KEY",
+        endpoint="api.x.ai",
     ),
 }
 
@@ -237,6 +243,58 @@ MODELS: tuple[ModelInfo, ...] = (
         surface_kind="search_only",
         supports_temperature=False,  # 纯搜索接口无采样参数
     ),
+    # ---- Grok(xAI Responses API + web_search;无区域参数;id 与单价核自 /v1/language-models,
+    #      2026-11-19;未收 grok-build-0.1[编码模型]与 grok-4.20-multi-agent[多代理,另一种表面])----
+    _m(
+        "grok",
+        "grok-4.20-0309-non-reasoning",
+        "Grok 4.20 (non-reasoning)",
+        "economy",
+        "Dated Grok 4.20 snapshot without reasoning; fastest Grok here.",
+        supports_region=False,
+    ),
+    _m(
+        "grok",
+        "grok-4.20-0309-reasoning",
+        "Grok 4.20 (reasoning)",
+        "economy",
+        "Dated Grok 4.20 snapshot with reasoning.",
+        supports_region=False,
+    ),
+    _m(
+        "grok",
+        "grok-4.3",
+        "Grok 4.3",
+        "economy",
+        "Lower-cost Grok (light reasoning by default): a quick first look.",
+        supports_region=False,
+    ),
+    _m(
+        "grok",
+        "grok-4.5",
+        "Grok 4.5",
+        "standard",
+        "Earlier Grok 4.x mainline model; same token price as 4.7.",
+        supports_region=False,
+    ),
+    _m(
+        "grok",
+        "grok-4.6",
+        "Grok 4.6",
+        "standard",
+        "Previous Grok mainline model; same token price as 4.7.",
+        supports_region=False,
+    ),
+    _m(
+        "grok",
+        "grok-4.7",
+        "Grok 4.7",
+        "standard",
+        "Current Grok mainline model (reasoning always on). "
+        "Smoke (2026-11): its answers carried no inline citation markers, so citation "
+        "metrics may read 0 while mention metrics work.",
+        supports_region=False,
+    ),
 )
 
 _BY_KEY: dict[str, ModelInfo] = {m.key: m for m in MODELS}
@@ -268,6 +326,12 @@ _TIER_DEFAULTS: dict[str, dict[str, str]] = {
         "economy": "perplexity/sonar",
         "standard": "preset:low",
         "high": "preset:medium",
+    },
+    # 4.5–4.7 同价,standard/high 都取现役主力 4.7
+    "grok": {
+        "economy": "grok-4.3",
+        "standard": "grok-4.7",
+        "high": "grok-4.7",
     },
 }
 

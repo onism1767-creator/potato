@@ -137,7 +137,7 @@ def test_estimate_surfaces_lists_each_and_total(capsys: pytest.CaptureFixture[st
 def test_models_command_lists_catalog(capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main(["models", "--config-dir", "configs/demo"]) == 0
     out = capsys.readouterr().out
-    assert "24 个表面" in out
+    assert "30 个表面" in out
     for needle in ("gpt-6-luna", "claude-fable-5-1", "gemini-3.8-flash", "preset:low", "search"):
         assert needle in out
     assert "no-region" in out and "unpinned" in out and "search-only" in out

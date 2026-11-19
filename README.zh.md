@@ -6,7 +6,7 @@
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-254%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-350%20passing-brightgreen)](tests/)
 [![runs locally](https://img.shields.io/badge/%E5%85%A8%E7%A8%8B-%E6%9C%AC%E5%9C%B0%E8%BF%90%E8%A1%8C-success)](#4--准备你自己的-api-key)
 [![cost](https://img.shields.io/badge/%E4%BD%9C%E8%80%85%E6%94%B6%E8%B4%B9-%240-success)](#花多少钱)
 
@@ -21,7 +21,7 @@
 
 ## 1 · 这是什么(一句话)
 
-Potato 测量你的品牌在 **AI 联网回答里**的可见度——**Claude、ChatGPT(OpenAI)、Gemini、Perplexity** 四家 21 个模型,想测哪几个就勾哪几个。它用同一批**固定冻结的问题**反复问你选中的每个 AI,收集每一次品牌**提及**和来源**引用**,再用**确定性规则计分(非 AI 判官、不靠猜)**,给**每个引擎各出一份**可复现、可审计的报告,再加一页**并列对比**——引擎之间只并列、**绝不混成一个总分**。**每个数字都带不确定区间。**
+Potato 测量你的品牌在 **AI 联网回答里**的可见度——**Claude、ChatGPT(OpenAI)、Gemini、Perplexity、Grok(xAI)** 五家 27 个模型,想测哪几个就勾哪几个。它用同一批**固定冻结的问题**反复问你选中的每个 AI,收集每一次品牌**提及**和来源**引用**,再用**确定性规则计分(非 AI 判官、不靠猜)**,给**每个引擎各出一份**可复现、可审计的报告,再加一页**并列对比**——引擎之间只并列、**绝不混成一个总分**。**每个数字都带不确定区间。**
 
 ---
 
@@ -78,23 +78,26 @@ Potato 测量你的品牌在 **AI 联网回答里**的可见度——**Claude、
 
 有些品类的答案随地区不同而不同。Potato **钉死单一区域和语言**(如 US / en-US)并全程无尘室探测,所以一次运行给的是**一个一致的全国级视图**——不是不同城市的混合,也不是你的个性化结果。不同区域作为**独立分层(stratum)**测量,**绝不平均成一个会误导人的数字**。
 
-### 四家引擎、21 个模型——只并列、不混总分
+### 五家引擎、27 个模型——只并列、不混总分
 
-| 引擎 | 模型(v0.2,2026-09-22 对照官方文档核实) | 引用怎么读 |
+| 引擎 | 模型(对照官方文档核实:2026-09-22;Grok 2026-11-19) | 引用怎么读 |
 |---|---|---|
 | **Claude**(Anthropic) | Haiku 4.5 · Sonnet 4.6 · Sonnet 5 · Opus 4.8 · Opus 5 · Fable 5.1 | `web_search` 内联引用 |
 | **ChatGPT 系列**(OpenAI) | GPT-6 Luna / Sol / Astra · GPT-5.6 Luna / Terra / Sol | Responses API 的 `url_citation` 标注 |
 | **Gemini**(Google) | 3.8 / 3.7 / 3.6 / 3.5 Flash · 3.1 Pro 预览 | Google Search grounding 的 supports → chunks |
 | **Perplexity** | Sonar · Sonar Pro(预设 low)· Sonar Reasoning Pro(预设 medium)· Search API | Agent API 的 `url_citation` / `[n]` 标记;Search API = 结果链接 |
+| **Grok**(xAI) | Grok 4.20(非推理 / 推理)· 4.3 · 4.5 · 4.6 · 4.7 | Responses API 里行内 `[[n]](url)` 标记对应的 `url_citation` 标注 |
 
 每个引擎是一个独立的**测量表面**:各有各的报告、各受各的预算上限约束、各出各的账单。对比页只把它们**并排放**——**没有合成总分、没有跨引擎排名**,因为"在 Gemini 上可见"和"在 Claude 上可见"是两件不同的事实。
 
 **诚实标记会显示在每张模型卡上,并记进每次运行的清单:**
 - *不接受温度*——该模型拒绝采样参数(OpenAI 全部推理模型;Claude Sonnet 5 / Opus 4.8 / Opus 5 / Fable 5.1),无尘室的温度在它那里钉不住;
-- *无区域参数*——该接口没有区域参数(Gemini);
+- *无区域参数*——该接口没有区域参数(Gemini、Grok);
 - *底层会变*——Perplexity 官方预设档底层跑的是 OpenAI 模型且自动更新、不可钉死(清单记录每次实际跑的模型);
 - *纯搜索*——Perplexity Search API 只返回结果链接、**没有生成回答**,提及类指标不适用(引用类指标照常);
 - *Perplexity Sonar*(Agent API)在我们的真机冒烟里**回答不带内联引用标记**,其引用类指标可能为 0,提及类指标正常;预设档的回答带 `[web:n]` 标记;
+- *Grok 4.7* 在我们的真机冒烟里同样**回答不带行内引用标记**(2 次皆如此)。这时 xAI 只返回一份「代理浏览过的全部网页」清单(约 50 条),Potato **不把它算作引用**——所以它的引用类指标可能为 0,提及类指标正常。Grok 4.20 ~ 4.6 则有行内引用;
+- Grok 请求侧唯一的上限(`max_turns`)卡的是代理轮数、不是工具调用数,而且打开网页和搜索一样按次计费——所以它的开跑前预估故意放得宽(真机冒烟的实际花费是预估的 22%~62%);运行中的预算硬封顶照常拦超支;
 - Gemini 给的是 Google 跳转链接而非真实网址;Potato 只读跳转头(不抓页面)把它解析成真实网址,owned / earned 判定才能成立,原始链接照样留在原始记录里。
 
 引擎**从设计上就与具体模型无关**:每个模型都藏在同一套适配器接口后面,模型目录集中在一个文件,流水线里没有任何针对某模型的分支——**接一个新引擎 = 写一个适配器**。
@@ -106,7 +109,7 @@ Potato 测量你的品牌在 **AI 联网回答里**的可见度——**Claude、
 ### key 用来干嘛
 
 - **免费预览(mock)不用 key、零成本。**
-- 只有真正会调用 AI 的步骤才需要 key:**AI 起草题目**(可选,用 Claude)和**真实测量**(勾了哪家就要哪家的 key——Anthropic、OpenAI、Google Gemini、Perplexity;Perplexity 一把 key 同时管 Agent API 和 Search API)。
+- 只有真正会调用 AI 的步骤才需要 key:**AI 起草题目**(可选,用 Claude)和**真实测量**(勾了哪家就要哪家的 key——Anthropic、OpenAI、Google Gemini、Perplexity、xAI;Perplexity 一把 key 同时管 Agent API 和 Search API)。
 - 你用**自己的 API key**,**由各家直接向你计费**。
 
 ### 花多少钱
@@ -118,7 +121,7 @@ Potato 测量你的品牌在 **AI 联网回答里**的可见度——**Claude、
 
 - **只在你自己电脑上运行**(`127.0.0.1`)。**没有任何云端服务器,不上传任何数据。**
 - 你的 key **只存在内存里**,经环境变量传给本地子进程——**绝不写入硬盘、绝不进日志、绝不出现在命令行。**
-- 每家的 key 只发往**那一家自己的接口**——`api.anthropic.com`、`api.openai.com`、`generativelanguage.googleapis.com`、`api.perplexity.ai`(你自己的账号)——**绝不发往任何作者服务器,零遥测。**
+- 每家的 key 只发往**那一家自己的接口**——`api.anthropic.com`、`api.openai.com`、`generativelanguage.googleapis.com`、`api.perplexity.ai`、`api.x.ai`(你自己的账号)——**绝不发往任何作者服务器,零遥测。**
 - 开源可审计;报告里的**「网络去向」**面板会显示本次到底连了哪里,以上每条你都能自己验证。
 
 ---
@@ -126,9 +129,9 @@ Potato 测量你的品牌在 **AI 联网回答里**的可见度——**Claude、
 ### 给开发者 / 进阶用法
 
 - **从 CLI / Claude Skill 测你自己的品牌**(SETUP 模式):`aivis init` 生成焦点配置骨架 → `aivis validate` 质检 → `aivis estimate` 估价 → `aivis run` 运行。详见 [SKILL.md](SKILL.md)。
-- **CLI 多引擎:**`aivis models` 列出全部 24 个表面(含标记和按当前配置的预估);`aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` 逐个表面跑、每个表面一份报告,再出 `analysis/compare/<id>/comparison.html` 并打印账单。密钥只从 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` 读取。
+- **CLI 多引擎:**`aivis models` 列出全部 30 个表面(含标记和按当前配置的预估);`aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` 逐个表面跑、每个表面一份报告,再出 `analysis/compare/<id>/comparison.html` 并打印账单。密钥只从 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` / `XAI_API_KEY` 读取。
 - **项目导读:**[SKILL.md](SKILL.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CLAUDE.md](CLAUDE.md)(行为红线)· `src/aivis/contracts/`(数据契约)· `configs/demo/`(中立 5 品牌 demo)。
-- **质量基线:**契约冻结、三层存储(raw 只追加)、确定性纯函数计分、黄金测试、CI 检查员(ruff / mypy / import-linter / gitleaks / pytest)——**254 测试全绿。**
+- **质量基线:**契约冻结、三层存储(raw 只追加)、确定性纯函数计分、黄金测试、CI 检查员(ruff / mypy / import-linter / gitleaks / pytest)——**350 测试全绿。**
 
 ## License
 

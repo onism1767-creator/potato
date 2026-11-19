@@ -47,7 +47,7 @@ _README_ZH = """AI Visibility Easy Tool —— 本地可见度测量工具(便�
 - 全程只在你自己电脑上运行(127.0.0.1),没有任何云端服务器。
 - 免费档不需要 key、零成本。
 - 只有选「AI 起草」(用 Claude)或「真实测量」(勾了哪家 AI 就要哪家的 key:
-  Anthropic / OpenAI / Google Gemini / Perplexity)时才需要你自己的 API key:
+  Anthropic / OpenAI / Google Gemini / Perplexity / xAI Grok)时才需要你自己的 API key:
   key 只存在内存里,每家的 key 只发往那一家自己的接口(你自己的账号),
   绝不写入硬盘、不写日志、不发往任何开发者服务器。
 - 开源 MIT,可自行审阅代码。
@@ -70,7 +70,7 @@ _README_EN = """AI Visibility Easy Tool — local visibility measurement (portab
 - Everything runs only on your own computer (127.0.0.1). There is no cloud server.
 - The free tier needs no key and costs nothing.
 - A key is only needed if you choose "AI drafting" (uses Claude) or a "real measurement"
-  (one key per AI you tick: Anthropic / OpenAI / Google Gemini / Perplexity):
+  (one key per AI you tick: Anthropic / OpenAI / Google Gemini / Perplexity / xAI Grok):
   each key stays in memory only, is sent only to that provider's own API (your own account),
   and is never written to disk, never logged, and never sent to any developer server.
 - Open source (MIT) — you can audit the code yourself.

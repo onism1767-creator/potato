@@ -2,7 +2,7 @@
 
 所有引擎差异封装在各自适配器内;pipeline 禁止出现 `if provider == ...` 分支。
 v0.1 只有 mock + anthropic;v0.2(2026-09)起接 openai / gemini / perplexity 四家真引擎,
-每家一个适配器,模型目录(ModelInfo)由各适配器模块自报、providers.registry 汇总。
+2026-11 加 grok;每家一个适配器,模型目录(ModelInfo)由各适配器模块自报、providers.registry 汇总。
 """
 
 from typing import Literal, Protocol
@@ -31,7 +31,7 @@ class ProviderInfo(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    name: str  # anthropic / openai / gemini / perplexity / mock
+    name: str  # anthropic / openai / gemini / perplexity / grok / mock
     label: str  # 展示名,如 "Claude (Anthropic)"
     env_key: str  # 密钥环境变量名(🟥 密钥只经环境变量读取,CLAUDE.md §5)
     endpoint: str  # 密钥唯一发往的主机,如 "api.anthropic.com"(隐私文案如实列出)

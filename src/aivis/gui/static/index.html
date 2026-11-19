@@ -269,7 +269,7 @@
 const TOKEN = document.querySelector('meta[name=aivis-token]').content;
 let QUESTIONS = [];
 let DRAFT_EST = 0;       // AI 起草这一步的预估(免费档=0),用于合并总额
-let MODELS = null;       // /api/models 返回的目录(四家 + 预估)
+let MODELS = null;       // /api/models 返回的目录(各家 + 预估)
 let SELECTED = new Set();// 已勾选的表面 key(provider:model)
 let KEYS = {};           // 各家 key(仅内存;随 /api/run 发给本机服务)
 const $ = (id) => document.getElementById(id);
@@ -277,13 +277,13 @@ const v = (id) => $(id).value.trim();
 
 // ── i18n:语言字典 + 切换 ────────────────────────────────────────────────
 const I18N = {
-  subtitle:{zh:'测量 AI 联网回答里提及与引用你品牌的频率(Claude · ChatGPT · Gemini · Perplexity)', en:'Measure how often AI web-search answers mention & cite your brand (Claude · ChatGPT · Gemini · Perplexity)'},
+  subtitle:{zh:'测量 AI 联网回答里提及与引用你品牌的频率(Claude · ChatGPT · Gemini · Perplexity · Grok)', en:'Measure how often AI web-search answers mention & cite your brand (Claude · ChatGPT · Gemini · Perplexity · Grok)'},
   tab1:{zh:'1 · 品牌', en:'1 · Brand'},
   tab2:{zh:'2 · 起草与审核', en:'2 · Draft & review'},
   tab3:{zh:'3 · 运行与报告', en:'3 · Run & report'},
   s0_ph:{zh:'关于本工具', en:'About this tool'},
-  s0_sub:{zh:'它测量一个品牌在 AI 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。支持 Claude、ChatGPT(OpenAI)、Gemini 和 Perplexity,每个引擎单独出报告、并列对比、不混总分。',
-    en:"It measures how often a brand shows up — <b>mentioned</b> and <b>cited</b> — in AI web-search answers, and turns that into a report you can trust and repeat. Supports Claude, ChatGPT (OpenAI), Gemini and Perplexity: one report per engine, compared side by side, never blended into one score."},
+  s0_sub:{zh:'它测量一个品牌在 AI 联网搜索回答里出现的频率——<b>被提及</b>与<b>被引用</b>——并把结果变成一份可信、可复现的报告。支持 Claude、ChatGPT(OpenAI)、Gemini、Perplexity 和 Grok(xAI),每个引擎单独出报告、并列对比、不混总分。',
+    en:"It measures how often a brand shows up — <b>mentioned</b> and <b>cited</b> — in AI web-search answers, and turns that into a report you can trust and repeat. Supports Claude, ChatGPT (OpenAI), Gemini, Perplexity and Grok (xAI): one report per engine, compared side by side, never blended into one score."},
   s0_how:{zh:'工作原理', en:'How it works'},
   s0_how1:{zh:'<b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 AI 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。',
     en:'<b>24 fixed questions, in a fixed 8 / 6 / 6 / 4 mix</b> — 8 discovery ("what\'s best for…"), 6 comparison ("how do brands compare on…"), 6 local/scenario, and 4 brand-defense. The first 20 <b>never name any brand</b>, so the test can\'t nudge the AI toward you — only the 4 defense questions name your brand on purpose. Keeping the set and the mix fixed is what makes runs <b>comparable and repeatable</b> instead of drifting every time.'},
@@ -337,8 +337,8 @@ const I18N = {
     en:'<b>100% local.</b> The app runs at <b>127.0.0.1</b> on your machine — there is no server of ours in the loop. It\'s open-source (MIT), so you can read every line, and the report\'s <b>"network destinations"</b> panel shows exactly where the run connected.'},
   s3_notice2:{zh:'<b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——每家的 key 只发往那一家自己的接口(下方逐家列出),别处都不去。',
     en:'<b>Your API keys are safe.</b> Held <b>in memory only</b>, passed to the local run through environment variables — <b>never written to disk, never logged, never put on a command line</b> — and each key is sent only to that provider\'s own API (listed per provider below), nowhere else.'},
-  s3_notice3:{zh:'<b>作者零收益——本工具免费。</b>你花的任何钱都直接付给你选的 AI 提供商(Anthropic / OpenAI / Google / Perplexity),付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 API key,由各家直接向你计费。',
-    en:'<b>The author earns nothing — this tool is free.</b> Any money you spend goes directly to the AI providers you pick (Anthropic / OpenAI / Google / Perplexity); it pays for the AI itself. <b>You are not paying the author.</b> You bring your own API keys and each provider bills you directly.'},
+  s3_notice3:{zh:'<b>作者零收益——本工具免费。</b>你花的任何钱都直接付给你选的 AI 提供商(Anthropic / OpenAI / Google / Perplexity / xAI),付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 API key,由各家直接向你计费。',
+    en:'<b>The author earns nothing — this tool is free.</b> Any money you spend goes directly to the AI providers you pick (Anthropic / OpenAI / Google / Perplexity / xAI); it pays for the AI itself. <b>You are not paying the author.</b> You bring your own API keys and each provider bills you directly.'},
   s3_mock_note:{zh:'第一次用?先选 <b>Mock</b>。<b>Mock(免费演示)</b>用内置示例数据把整条流程跑一遍——<b>不需要 API key、$0、不向任何 AI 发送东西</b>。它是最快看清“最终报告长什么样、测哪些指标”(提及覆盖率、引用有效性、声量份额、逐题在场矩阵……)的方式。直接点下面的 <b>开始测量</b>,跑完点 <b>打开报告</b> 即可。准备好测你自己的品牌时,再切到 <b>真实测量</b>——选要测的 AI,那才会真的去问、要花钱。',
     en:'New here? Start with <b>Mock</b>. <b>Mock (free demo)</b> runs the whole pipeline on built-in sample data — <b>no API key, $0, nothing is sent to any AI</b>. It\'s the fastest way to see what the final report looks like and which metrics it measures (mention coverage, citation validity, share of voice, the per-question presence matrix, …). Just click <b>Start measurement</b> below, then <b>Open report</b> when it finishes. When you\'re ready to test your own brand, switch to <b>Real measurement</b>, pick the AIs to test — that actually asks them and costs money.'},
   s3_mock:{zh:'模拟(免费演示)', en:'Mock (free demo)'},
@@ -611,7 +611,7 @@ async function doEstimate(){
   $('emsg').textContent = core + (d.over_budget ? t('over_blocked') : '');
 }
 function budget(){ const b = parseFloat(v('budget')); return isNaN(b) ? 13 : b; }
-async function loadModels(){  // 四家全部表面 + 预估(需先在 Step2 起草出题目)
+async function loadModels(){  // 各家全部表面 + 预估(需先在 Step2 起草出题目)
   if(!QUESTIONS.length){ $('models').innerHTML =
     '<div class="note">'+t('tiers_need')+'</div>'; return; }
   const res = await post('/api/models', {...inputs(), questions:QUESTIONS, budget_cap_usd:budget()});

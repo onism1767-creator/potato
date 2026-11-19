@@ -1,13 +1,13 @@
 ---
 name: aivis
 description: >
-  AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity 四家 21 个模型):
+  AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity / Grok 五家 27 个模型):
   用冻结题库反复探测你选中的每个引擎(web search 开启),以确定性规则统计品牌被提及/被引用的
   频率与结构,每个引擎各出一份带不确定区间、可审计的报告,再并列对比(不混总分)。
   仅观测,不生成"照做就能提升 AI 提及"的建议。
 ---
 
-# aivis — AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity)
+# aivis — AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity / Grok)
 
 > 薄入口:本文只编排流程,逻辑全在 `aivis` 库 / CLI 里。
 > 起草问题的逐桶原则见 [docs/question-drafting-principles.md](docs/question-drafting-principles.md);
@@ -21,14 +21,14 @@ description: >
 > AI)反复提问(每题问到"提及品牌集稳定"为止),再用**确定性规则**(非 AI 判官、保守计数、
 > 三档证据 mentioned→cited→verified)计分,每个数字带不确定区间。可复现、可审计。
 > **🟥 成本诚实**:本工具开源免费、**作者不收任何费用**;你花的钱是付给你选的 AI 提供商
-> (Anthropic / OpenAI / Google / Perplexity)的 AI 费用(自带 key,各家直接计费),不经作者。
+> (Anthropic / OpenAI / Google / Perplexity / xAI)的 AI 费用(自带 key,各家直接计费),不经作者。
 > 全程本机运行、不上传任何数据;每家 key 只发往那一家自己的接口。
 
 ## 两种模式
 
 ### SETUP(一次性 · 建一条新基线)
 
-触发:用户想测某个品牌在 Claude / ChatGPT / Gemini / Perplexity 里的可见度,或说 "setup"。照下面 7 步走;
+触发:用户想测某个品牌在 Claude / ChatGPT / Gemini / Perplexity / Grok 里的可见度,或说 "setup"。照下面 7 步走;
 **AI(=对话中的你)只在本模式起草问题/建议竞品,且必须人工确认后冻结**(CLAUDE.md §7.1)。
 
 0. **收集输入**:焦点品牌**全名**(明确请用户给全名,别用简称)+ 常见简称(aliases)+
@@ -56,7 +56,7 @@ description: >
 只重放冻结配置,不再起草:
 - 先 mock 跑通(零成本):`aivis run --config-dir configs/<name>`
 - 真实运行(单引擎):`aivis run --config-dir configs/<name> --provider anthropic --model claude-sonnet-5 --yes`
-  (`--model` 缺省取该引擎 `--tier` 档默认;`aivis models` 列出全部 24 个表面与诚实标记)
+  (`--model` 缺省取该引擎 `--tier` 档默认;`aivis models` 列出全部 30 个表面与诚实标记)
 - 真实运行(多引擎,用户选哪几个就填哪几个):
   `aivis run --config-dir configs/<name> --surfaces anthropic:claude-sonnet-5,openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:perplexity/sonar --yes`
   → 每个表面独立 run_id 与报告 + `analysis/compare/<id>/comparison.md|.html` 并列对比 + 账单;

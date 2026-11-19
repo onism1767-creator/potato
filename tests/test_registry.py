@@ -6,7 +6,14 @@ from aivis.contracts.adapter import SurfaceSpec
 from aivis.providers import catalog, registry
 from aivis.providers.mock import MockAdapter
 
-EXPECTED_COUNTS = {"mock": 3, "anthropic": 6, "openai": 6, "gemini": 5, "perplexity": 4}
+EXPECTED_COUNTS = {
+    "mock": 3,
+    "anthropic": 6,
+    "openai": 6,
+    "gemini": 5,
+    "perplexity": 4,
+    "grok": 6,
+}
 
 
 def test_catalog_covers_all_providers_with_unique_keys() -> None:

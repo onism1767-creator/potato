@@ -37,7 +37,7 @@ from aivis.storage.raw import RawStore
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="aivis",
-        description="AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity)"
+        description="AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity / Grok)"
         "——可复现的提及/引用测量框架",
     )
     parser.add_argument("--config-dir", type=Path, default=Path("configs/demo"))

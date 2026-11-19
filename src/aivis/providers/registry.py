@@ -44,6 +44,10 @@ def make_adapter(spec: SurfaceSpec, *, tier: str = "standard") -> ProviderAdapte
         if info.surface_kind == "search_only":
             return PerplexitySearchAdapter()
         return PerplexityAdapter(model=info.model)
+    if info.provider == "grok":
+        from aivis.providers.grok import GrokAdapter
+
+        return GrokAdapter(model=info.model)
     raise NotImplementedError(f"引擎 {info.provider!r} 的适配器尚未接入")
 
 

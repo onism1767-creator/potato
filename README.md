@@ -6,7 +6,7 @@
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-254%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-350%20passing-brightgreen)](tests/)
 [![runs locally](https://img.shields.io/badge/runs-100%25%20local-success)](#4--bring-your-own-api-key)
 [![cost](https://img.shields.io/badge/author%20fee-%240-success)](#what-it-costs)
 
@@ -21,7 +21,7 @@
 
 ## 1 · What Potato is
 
-Potato measures how visible your brand is **inside AI web-search answers** — **Claude, ChatGPT (OpenAI), Gemini and Perplexity** (21 models, pick any subset). It asks each AI you select the same fixed set of frozen questions, collects every brand **mention** and source **citation**, then scores them with **deterministic rules — no AI judge, no guesswork**. The result is one reproducible, auditable report **per engine**, plus a **side-by-side comparison** — engines are placed next to each other and **never blended into one score**. **Every number carries a confidence interval.**
+Potato measures how visible your brand is **inside AI web-search answers** — **Claude, ChatGPT (OpenAI), Gemini, Perplexity and Grok (xAI)** (27 models, pick any subset). It asks each AI you select the same fixed set of frozen questions, collects every brand **mention** and source **citation**, then scores them with **deterministic rules — no AI judge, no guesswork**. The result is one reproducible, auditable report **per engine**, plus a **side-by-side comparison** — engines are placed next to each other and **never blended into one score**. **Every number carries a confidence interval.**
 
 ---
 
@@ -78,23 +78,26 @@ The portable build ships an **official, python.org-signed Python** (not a homema
 
 Some categories are answered differently depending on location. Potato **pins a single region and language** (e.g. US / en-US) and runs every probe clean-room, so a run is one consistent **national-level** view — not a blur of different cities, and not your personalized results. Different regions are measured as **separate strata** and are **never averaged together** into a single misleading number.
 
-### Four engines, 21 models — compared side by side, never blended
+### Five engines, 27 models — compared side by side, never blended
 
-| Engine | Models (v0.2, verified against official docs 2026-09-22) | How citations are read |
+| Engine | Models (verified against official docs 2026-09-22; Grok 2026-11-19) | How citations are read |
 |---|---|---|
 | **Claude** (Anthropic) | Haiku 4.5 · Sonnet 4.6 · Sonnet 5 · Opus 4.8 · Opus 5 · Fable 5.1 | inline `web_search` citations |
 | **ChatGPT models** (OpenAI) | GPT-6 Luna / Sol / Astra · GPT-5.6 Luna / Terra / Sol | Responses API `url_citation` annotations |
 | **Gemini** (Google) | 3.8 / 3.7 / 3.6 / 3.5 Flash · 3.1 Pro preview | Google Search grounding supports → chunks |
 | **Perplexity** | Sonar · Sonar Pro (preset low) · Sonar Reasoning Pro (preset medium) · Search API | Agent API `url_citation` / `[n]` markers; Search API = result links |
+| **Grok** (xAI) | Grok 4.20 (non-reasoning / reasoning) · 4.3 · 4.5 · 4.6 · 4.7 | Responses API `url_citation` annotations on inline `[[n]](url)` markers |
 
 Each engine is its own **measurement surface**: it gets its own report, its own budget cap and its own bill. The comparison page places surfaces **side by side — no combined score, no cross-engine ranking**, because "visible on Gemini" and "visible on Claude" are different facts.
 
 **Honesty flags are shown on every model card and recorded in every run manifest:**
 - *no temperature* — the model rejects sampling parameters (all OpenAI reasoning models; Claude Sonnet 5 / Opus 4.8 / Opus 5 / Fable 5.1), so the clean-room temperature cannot be pinned there;
-- *no region* — the API has no region parameter (Gemini);
+- *no region* — the API has no region parameter (Gemini, Grok);
 - *underlying model changes* — Perplexity's official presets run an OpenAI model that auto-updates and cannot be pinned (the manifest records the actual model each run);
 - *search only* — Perplexity's Search API returns result links with **no generated answer**, so mention metrics do not apply (citation metrics still do);
 - *Perplexity Sonar* (Agent API) answered **without inline citation markers** in our smoke run, so its citation metrics may read 0 while mention metrics work; the presets do carry `[web:n]` markers;
+- *Grok 4.7* likewise answered **without inline citation markers** in our smoke run (2 of 2 calls). xAI then returns only a list of every page the agent browsed (about 50 URLs), which Potato does **not** count as citations — so its citation metrics may read 0 while mention metrics work. Grok 4.20 – 4.6 did cite inline;
+- Grok's only request-side limit (`max_turns`) caps agent turns, not tool calls, and opening a page is billed like a search — so its pre-run estimate is deliberately wide (real smoke calls cost 22–62% of it); the run-time budget cap still stops overspend;
 - Gemini returns Google redirect links instead of real URLs; Potato resolves them by reading only the redirect header (no page fetch) so owned / earned attribution still works, and keeps the original link in the raw record.
 
 The engine is **provider-agnostic by design**: every model sits behind one adapter interface, the model catalog lives in one file, and there are no model-specific branches in the pipeline — **you can add an engine by writing one adapter**.
@@ -106,7 +109,7 @@ The engine is **provider-agnostic by design**: every model sits behind one adapt
 ### What the key is for
 
 - The **free preview (mock) needs no key and costs nothing.**
-- A key is needed only for the steps that actually call an AI: **AI question drafting** (optional, uses Claude) and a **real measurement** (one key per engine you tick — Anthropic, OpenAI, Google Gemini, Perplexity; the Perplexity key covers both its Agent API and Search API).
+- A key is needed only for the steps that actually call an AI: **AI question drafting** (optional, uses Claude) and a **real measurement** (one key per engine you tick — Anthropic, OpenAI, Google Gemini, Perplexity, xAI; the Perplexity key covers both its Agent API and Search API).
 - You bring your **own API keys**, and **each provider bills you directly**.
 
 ### What it costs
@@ -118,7 +121,7 @@ The engine is **provider-agnostic by design**: every model sits behind one adapt
 
 - Runs **only on your machine** (`127.0.0.1`). There is **no cloud server, and nothing is uploaded.**
 - Your key lives **in memory only**, passed to a local subprocess through an environment variable — **never written to disk, never logged, never placed on a command line.**
-- Each key is sent **only to that provider's own API** — `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.perplexity.ai` (your own accounts) — **never to any author server. Zero telemetry.**
+- Each key is sent **only to that provider's own API** — `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.perplexity.ai`, `api.x.ai` (your own accounts) — **never to any author server. Zero telemetry.**
 - Open source and auditable; the report's **"network destinations"** panel shows exactly where the run connected, so you can verify all of the above yourself.
 
 ---
@@ -126,7 +129,7 @@ The engine is **provider-agnostic by design**: every model sits behind one adapt
 ### For developers & advanced use
 
 - **Measure your own brand from the CLI / Claude Skill** (SETUP mode): `aivis init` scaffolds a focal config → `aivis validate` checks it → `aivis estimate` prices a run → `aivis run` executes it. See [SKILL.md](SKILL.md).
-- **Multi-engine from the CLI:** `aivis models` lists all 24 surfaces with flags and per-run estimates; `aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` runs each surface, writes one report per surface plus `analysis/compare/<id>/comparison.html`, and prints the bill. Keys are read only from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY`.
+- **Multi-engine from the CLI:** `aivis models` lists all 30 surfaces with flags and per-run estimates; `aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` runs each surface, writes one report per surface plus `analysis/compare/<id>/comparison.html`, and prints the bill. Keys are read only from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` / `XAI_API_KEY`.
 - **Project map:** [SKILL.md](SKILL.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CLAUDE.md](CLAUDE.md) (behavioral red lines) · `src/aivis/contracts/` (data contracts) · `configs/demo/` (neutral 5-brand demo).
 - **Quality bar:** contracts frozen, three-layer storage (raw is append-only), deterministic pure scoring, golden tests, CI guards (ruff / mypy / import-linter / gitleaks / pytest) — **254 tests green.**
 

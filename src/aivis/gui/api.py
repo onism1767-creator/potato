@@ -159,7 +159,7 @@ def estimate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def models(payload: dict[str, Any]) -> dict[str, Any]:
-    """全部可测表面(四家真引擎,按目录顺序)+ 按当前配置的预估(离线、不花钱)。
+    """全部可测表面(全部真引擎,按目录顺序)+ 按当前配置的预估(离线、不花钱)。
 
     GUI"选测哪些 AI"的数据源:每个模型带 label / blurb / status / 诚实标记 / 预估 / 是否超预算;
     每家带密钥环境变量名与唯一发往的主机(隐私文案如实列出)。
