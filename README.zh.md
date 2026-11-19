@@ -6,7 +6,7 @@
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-350%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-357%20passing-brightgreen)](tests/)
 [![runs locally](https://img.shields.io/badge/%E5%85%A8%E7%A8%8B-%E6%9C%AC%E5%9C%B0%E8%BF%90%E8%A1%8C-success)](#4--准备你自己的-api-key)
 [![cost](https://img.shields.io/badge/%E4%BD%9C%E8%80%85%E6%94%B6%E8%B4%B9-%240-success)](#花多少钱)
 

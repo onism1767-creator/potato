@@ -5,11 +5,12 @@
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import httpx2 as httpx  # openai 3.x 基于 httpx2
 import openai
 import pytest
+from openai._models import construct_type
 from openai.types.responses import Response
 
 from aivis.contracts.adapter import FatalProviderError, SurfaceSpec
@@ -322,6 +323,10 @@ def test_client_targets_xai_only_and_drops_openai_identity(
     monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-must-not-be-used")
     monkeypatch.setenv("OPENAI_ORG_ID", "org-private")
     monkeypatch.setenv("OPENAI_PROJECT_ID", "proj-private")
+    # SDK 还会把这个环境变量里的任意请求头并进每个请求,连 Authorization 都能被它顶替
+    monkeypatch.setenv(
+        "OPENAI_CUSTOM_HEADERS", "X-Leak-Tenant: acme\nAuthorization: Bearer sk-openai-ambient"
+    )
     seen: dict[str, Any] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -344,6 +349,7 @@ def test_client_targets_xai_only_and_drops_openai_identity(
     assert seen["headers"]["authorization"] == "Bearer xai-test-not-a-real-key"
     assert "openai-organization" not in seen["headers"]
     assert "openai-project" not in seen["headers"]
+    assert "x-leak-tenant" not in seen["headers"]
     assert seen["body"]["max_turns"] == demo_cfg.max_uses  # extra_body 真的进了请求体
     assert seen["body"]["store"] is False and "instructions" not in seen["body"]
 
@@ -372,6 +378,76 @@ def test_incomplete_status_recorded_as_failure(demo_cfg: FrozenConfig) -> None:
     )
     assert not resp.finished_ok and resp.error_code == "other"
     assert "max_output_tokens" in (resp.error_detail or "")
+
+
+def test_completed_without_answer_text_is_failure_not_empty_answer(
+    demo_cfg: FrozenConfig,
+) -> None:
+    """status=completed 但没有任何回答文本(只搜了没答):记为失败,不当成"空回答"(CLAUDE.md §9.4)。"""
+    adapter = FakeAdapter(
+        [_response([_search_call()], usage=_usage(cost_in_usd_ticks=123_000_000))]
+    )
+    resp = _ask(adapter, demo_cfg)
+    assert not resp.finished_ok and resp.error_code == "other"
+    assert resp.answer_text == "" and resp.search_count == 1
+    # 钱已经花了:原始返回留底,花费照记
+    assert adapter.actual_cost_usd(resp) == pytest.approx(0.0123)
+
+
+def test_refusal_is_recorded_as_failure(demo_cfg: FrozenConfig) -> None:
+    refusal = {
+        "id": "msg_1",
+        "type": "message",
+        "role": "assistant",
+        "status": "completed",
+        "content": [{"type": "refusal", "refusal": "I can't help with that."}],
+    }
+    resp = _ask(FakeAdapter([_response([refusal])]), demo_cfg)
+    assert not resp.finished_ok and resp.error_code == "refusal"
+    assert "can't help" in (resp.error_detail or "")
+
+
+def test_unexpected_response_shape_is_recorded_not_raised(demo_cfg: FrozenConfig) -> None:
+    """SDK 不校验 xAI 的返回:形状出乎意料时(这里是标注缺位置)钱已经花了——
+    原样留底、记为 parse_error、花费照记,不许异常冲出 ask 让这次调用既没留底也没记账。"""
+    payload = _response(
+        [_message("Osprey wins.", [])], usage=_usage(cost_in_usd_ticks=456_000_000)
+    ).model_dump(mode="json")
+    payload["output"][0]["content"][0]["annotations"] = [
+        {
+            "type": "url_citation",
+            "url": "https://a.example/1",
+            "title": "1",
+            "start_index": None,
+            "end_index": None,
+        }
+    ]
+    adapter = FakeAdapter([cast(Response, construct_type(type_=Response, value=payload))])
+    resp = _ask(adapter, demo_cfg)
+    assert not resp.finished_ok and resp.error_code == "parse_error"
+    assert resp.citations == () and "TypeError" in (resp.error_detail or "")
+    assert "Osprey wins." in resp.raw_json  # 原始返回留底可审计
+    assert adapter.actual_cost_usd(resp) == pytest.approx(0.0456)
+
+
+def test_actual_cost_edge_cases_stay_conservative(demo_cfg: FrozenConfig) -> None:
+    # API 自报 0 但 token 明明用了:不信这个 0,回退按单价算(宁可多记)
+    adapter = FakeAdapter(
+        [_response([_search_call(), _message("ok")], usage=_usage(cost_in_usd_ticks=0))]
+    )
+    resp = _ask(adapter, demo_cfg)
+    assert adapter.actual_cost_usd(resp) == pytest.approx(
+        1000 / 1e6 * 1.25 + 200 / 1e6 * 2.5 + 0.005
+    )
+    # usage 里混进非数字:记 0,不许异常冲出去把 probe 的记账打断
+    garbled = resp.model_copy(
+        update={
+            "raw_json": json.dumps(
+                {"response": {"usage": {"input_tokens": "n/a"}}, "web_search_calls": "?"}
+            )
+        }
+    )
+    assert adapter.actual_cost_usd(garbled) == 0.0
 
 
 def test_rate_limit_and_timeout_recorded(demo_cfg: FrozenConfig) -> None:
@@ -423,6 +499,54 @@ def test_cited_sentence_shapes() -> None:
     # 区间不是标记(关闭行内引用等形态)→ 原样返回;越界 → None
     assert _cited_sentence(text, [], 0, 11) == "Intro line."
     assert _cited_sentence(text, spans, 5, 9999) is None
+
+
+def _spans_of(text: str, *markers: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    cursor = 0
+    for marker in markers:
+        start = text.index(marker, cursor)
+        spans.append((start, start + len(marker)))
+        cursor = start + len(marker)
+    return spans
+
+
+_M1 = "[[1]](https://a.example/1)"
+_M2 = "[[2]](https://b.example/2)"
+
+
+def test_cited_sentence_breaks_cjk_sentences_without_whitespace() -> None:
+    # 中文句末标点后通常不跟空格:上一句(说的是别的品牌)不许漏进本句的引用片段,
+    # 否则 extract 会把这条引用也记给上一句的品牌(违反保守计数)
+    text = f"甲品牌在入门档口碑最好。乙品牌的续航更长{_M1}。"
+    spans = _spans_of(text, _M1)
+    assert _cited_sentence(text, spans, *spans[0]) == "乙品牌的续航更长"
+    # 标记写在句号之后:仍只归它紧前面那一句
+    text = f"甲品牌在入门档口碑最好！乙品牌的续航更长。{_M1}"
+    spans = _spans_of(text, _M1)
+    assert _cited_sentence(text, spans, *spans[0]) == "乙品牌的续航更长。"
+
+
+def test_cited_sentence_marker_after_full_stop_and_spaced_markers() -> None:
+    # 标记在句号+空格之后,且两个标记之间隔了空格:同一串,共用紧前面那一句
+    text = f"Alpha is the budget pick. Beta lasts longer. {_M1} {_M2} Gamma is new."
+    spans = _spans_of(text, _M1, _M2)
+    assert _cited_sentence(text, spans, *spans[0]) == "Beta lasts longer."
+    assert _cited_sentence(text, spans, *spans[1]) == "Beta lasts longer."
+
+
+def test_cited_sentence_without_a_supported_sentence_is_none() -> None:
+    # 另起一行的标记:前面没有可归属的句子 → None(保守,不把上一行猜给它)
+    text = f"Alpha is cheap {_M1}\n{_M2} Beta is durable."
+    spans = _spans_of(text, _M1, _M2)
+    assert _cited_sentence(text, spans, *spans[1]) is None
+    text = f"Alpha is cheap.\n{_M1} Beta is durable."
+    spans = _spans_of(text, _M1)
+    assert _cited_sentence(text, spans, *spans[0]) is None
+    # 标记前只剩标点 → None(片段里得有字)
+    text = f"Alpha is cheap {_M1}. {_M2}"
+    spans = _spans_of(text, _M1, _M2)
+    assert _cited_sentence(text, spans, *spans[1]) is None
 
 
 def test_cited_sentence_window_is_bounded() -> None:

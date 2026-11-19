@@ -25,7 +25,9 @@ xAI 的 Responses API 与 OpenAI 的同形,官方文档示例即用 `openai` SDK
   - 成本优先取 API 自报的 `usage.cost_in_usd_ticks`(1e10 ticks = $1;真机核对与"token 单价 +
     $5/千次搜索"分毫不差);缺失时按 provider × model 单价回退
     (含缓存分级与 ≥20 万 token 长上下文翻倍);
-  - 密钥只经环境变量 XAI_API_KEY 读取;xAI 对坏密钥返 400、未知模型返 404 → 均立即中止整批。
+  - 密钥只经环境变量 XAI_API_KEY 读取;xAI 对坏密钥返 400、未知模型返 404 → 均立即中止整批;
+  - 失败如实记(CLAUDE.md §9.4):`completed` 却没有回答文本记 other、拒答记 refusal(不做
+    fallback)、返回形状解析不了记 parse_error——后两种钱已花,原始返回留底、花费照记。
 
 唯一网络触点是 _send();单元测试以替身覆盖它,离线、零成本。
 """
@@ -89,15 +91,19 @@ def _utc_now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-_SENTENCE_BREAK = re.compile(r"""[.!?。！？]["'*_)\]]*\s+|\n+""")
+# 断句点:西文句末标点后须跟空白(小数点、缩写里的点不断);中文句末标点后通常不跟空格,直接断
+# ——否则上一句(说别的品牌的)会漏进本句的引用片段,被 extract 多记一条 earned
+_SENTENCE_BREAK = re.compile(r"""[.!?]["'*_)\]]*\s+|[。！？]["'”’」』）)\]*_]*\s*|\n+""")
+_TRAILING_STOP = re.compile(r"""[.!?。！？]["'”’」』）)\]*_]*\Z""")  # 句子自己的句末标点
 _CITED_MAX_CHARS = 400
 
 
 def _cited_sentence(text: str, spans: list[tuple[int, int]], start: int, end: int) -> str | None:
     """标注区间 → 引用片段。区间是 `[[n]](url)` 标记时,取这串标记之前它所支撑的那句话。
 
-    spans = 本段文字里全部标注区间:连续标记(一句话挂多个来源)共用同一句;窗口内更早的标记
-    换成换行(既当断句点,又把别的来源 URL 挡在片段之外)。
+    spans = 本段文字里全部标注区间:连续标记(一句话挂多个来源,紧挨或只隔空格)共用同一句;
+    窗口内更早的标记换成换行(既当断句点,又把别的来源 URL 挡在片段之外)。
+    标记写在句末标点之后时仍归紧前面那一句;另起一行的标记、或前面只剩标点 → None(保守,不猜)。
     """
     if not (0 <= start <= end <= len(text)):
         return None
@@ -106,8 +112,13 @@ def _cited_sentence(text: str, spans: list[tuple[int, int]], start: int, end: in
         return span or None  # 非标记形态(如关闭了行内引用):区间本身就是被引文字
     ends = {e: s for s, e in spans if s < e}
     run_start = start
-    while run_start in ends:  # 退到这串连续标记的起点
-        run_start = ends[run_start]
+    while True:  # 退到这串连续标记的起点(ends[j] < j,必然终止)
+        j = run_start
+        while j > 0 and text[j - 1] in " \t":
+            j -= 1
+        if j not in ends:
+            break
+        run_start = ends[j]
     lo = max(0, run_start - _CITED_MAX_CHARS)
     pieces: list[str] = []
     cursor = lo
@@ -118,10 +129,13 @@ def _cited_sentence(text: str, spans: list[tuple[int, int]], start: int, end: in
         pieces.append("\n")
         cursor = e
     pieces.append(text[cursor:run_start])
-    head = "".join(pieces)
-    breaks = list(_SENTENCE_BREAK.finditer(head))
+    head = "".join(pieces).rstrip(" \t")
+    stop = _TRAILING_STOP.search(head)
+    core = head[: stop.start()] if stop else head  # 句子自己的句末标点不当断句点
+    breaks = list(_SENTENCE_BREAK.finditer(core))
     sentence = head[breaks[-1].end() :] if breaks else head
-    return sentence.strip().lstrip(",;:、，；：").strip() or None
+    sentence = sentence.strip().lstrip(",;:、，；：").strip()
+    return sentence if any(ch.isalnum() for ch in sentence) else None
 
 
 class GrokAdapter:
@@ -178,15 +192,16 @@ class GrokAdapter:
         try:
             data = json.loads(response.raw_json)
             usage = (data.get("response") or {}).get("usage") or {}
+            ticks = usage.get("cost_in_usd_ticks")
+            # 自报 0 不采信:token 明明用了却报 0 时回退按单价算(宁可多记,硬封顶才靠得住)
+            if isinstance(ticks, int | float) and not isinstance(ticks, bool) and ticks > 0:
+                return float(ticks) / _TICKS_PER_USD
             tool_calls = int(data.get("web_search_calls") or 0)
+            input_total = int(usage.get("input_tokens") or 0)
+            cached = int((usage.get("input_tokens_details") or {}).get("cached_tokens") or 0)
+            output = int(usage.get("output_tokens") or 0)
         except (ValueError, TypeError, AttributeError):
             return 0.0
-        ticks = usage.get("cost_in_usd_ticks")
-        if isinstance(ticks, int | float) and not isinstance(ticks, bool) and ticks >= 0:
-            return float(ticks) / _TICKS_PER_USD
-        input_total = int(usage.get("input_tokens") or 0)
-        cached = int((usage.get("input_tokens_details") or {}).get("cached_tokens") or 0)
-        output = int(usage.get("output_tokens") or 0)
         token_cost = (
             max(0, input_total - cached) / 1e6 * self._spec.in_price
             + cached / 1e6 * self._spec.cached_price
@@ -218,7 +233,12 @@ class GrokAdapter:
             return self._failure(question, run_id, run_index, "timeout", e)
         except openai.APIStatusError as e:
             return self._failure(question, run_id, run_index, "other", e)
-        return self._parse(question, run_id, run_index, response)
+        try:
+            return self._parse(question, run_id, run_index, response)
+        except (TypeError, ValueError, AttributeError) as e:
+            # SDK 不校验 xAI 的返回;形状出乎意料时钱已经花了:原样留底、记为失败、花费照记,
+            # 不让异常冲出去(否则这次调用既没留底也没进账,整批还会崩在这里)
+            return self._failure(question, run_id, run_index, "parse_error", e, response=response)
 
     def _send(self, params: dict[str, Any]) -> Response:
         """唯一网络触点(测试以替身覆盖)。"""
@@ -230,10 +250,13 @@ class GrokAdapter:
                     "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
                 )
             client = openai.OpenAI(api_key=key, base_url=_BASE_URL, timeout=_TIMEOUT_SECONDS)
-            # SDK 会从环境读 OPENAI_ORG_ID / OPENAI_PROJECT_ID 并作为请求头发出;
-            # 那是 OpenAI 账号的标识,不许带给 x.ai
+            # SDK 构造时会从环境读一批给 OpenAI 用的东西并随每个请求发出:OPENAI_ORG_ID /
+            # OPENAI_PROJECT_ID(账号标识),以及 OPENAI_CUSTOM_HEADERS 里的任意请求头——后者连
+            # Authorization 都能顶替掉(那样发给 x.ai 的就成了 OpenAI 的凭据)。一律清掉,不带给 x.ai。
+            # _custom_headers 是 SDK 私有属性(没有公开开关),由离线测试钉住:SDK 改名测试会红
             client.organization = None
             client.project = None
+            client._custom_headers = {}
             self._client = client
         return cast(Response, self._client.responses.create(**params))
 
@@ -261,6 +284,7 @@ class GrokAdapter:
         n_search_actions = 0  # action.type == "search" 的项
         n_tool_items = 0  # 所有 web_search_call 项(浏览页面等也计工具费,保守)
         tool_failed = False
+        refusals: list[str] = []
         position = 0
         for item in response.output:
             if item.type == "web_search_call":
@@ -271,6 +295,9 @@ class GrokAdapter:
                     tool_failed = True
             elif item.type == "message":
                 for part in item.content:
+                    if part.type == "refusal":
+                        refusals.append(part.refusal)
+                        continue
                     if part.type != "output_text":
                         continue
                     answer_parts.append(part.text)
@@ -297,7 +324,7 @@ class GrokAdapter:
                         )
                         position += 1
 
-        billed_calls = self._billed_search_calls(response, n_tool_items)
+        answer_text = " ".join(answer_parts)
         finished_ok = True
         error_code: ErrorCode | None = None
         error_detail: str | None = None
@@ -309,27 +336,39 @@ class GrokAdapter:
         elif tool_failed:
             finished_ok, error_code = False, "tool_error"
             error_detail = "web_search_call status=failed"
+        elif refusals:
+            # 拒答记为失败,不做 fallback(与 CLAUDE.md §4.4 对 Anthropic 的要求同口径)
+            finished_ok, error_code = False, "refusal"
+            error_detail = ("refusal: " + " ".join(refusals))[:500]
+        elif not answer_text.strip():
+            # completed 却没有任何回答文本(只搜不答等):是失败,不是"空回答"(CLAUDE.md §9.4)
+            finished_ok, error_code = False, "other"
+            error_detail = "response.status=completed 但没有回答文本"
 
         return RawResponse(
             run_id=run_id,
             question_id=question.id,
             run_index=run_index,
-            answer_text=" ".join(answer_parts),
+            answer_text=answer_text,
             citations=tuple(citations),
             search_count=n_search_actions,
             model=response.model or self._model,
             finished_ok=finished_ok,
             error_code=error_code,
             error_detail=error_detail,
-            raw_json=json.dumps(
-                {
-                    "response": response.model_dump(mode="json", warnings=False),
-                    "web_search_calls": billed_calls,
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-            ),
+            raw_json=self._dump_raw(response, self._billed_search_calls(response, n_tool_items)),
             timestamp=_utc_now(),
+        )
+
+    @staticmethod
+    def _dump_raw(response: Response, billed_calls: int) -> str:
+        return json.dumps(
+            {
+                "response": response.model_dump(mode="json", warnings=False),
+                "web_search_calls": billed_calls,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
         )
 
     @staticmethod
@@ -343,9 +382,28 @@ class GrokAdapter:
         return n_tool_items
 
     def _failure(
-        self, question: Question, run_id: str, run_index: int, error_code: ErrorCode, exc: Exception
+        self,
+        question: Question,
+        run_id: str,
+        run_index: int,
+        error_code: ErrorCode,
+        exc: Exception,
+        *,
+        response: Response | None = None,
     ) -> RawResponse:
-        """瞬时错误:显式记为失败并保留上下文,流水线继续(部分失败仍出报告)。"""
+        """显式记为失败并保留上下文,流水线继续(部分失败仍出报告)。
+
+        response=None:请求没拿到返回(限速/超时/5xx),花费记 0;
+        给了 response:返回拿到了但解析不了——原样留底,花费仍按它的 usage 记账。
+        """
+        raw_json = json.dumps({"response": None, "web_search_calls": 0})
+        if response is not None:
+            n_tool_items = sum(
+                1
+                for item in response.output or []
+                if getattr(item, "type", None) == "web_search_call"
+            )
+            raw_json = self._dump_raw(response, self._billed_search_calls(response, n_tool_items))
         return RawResponse(
             run_id=run_id,
             question_id=question.id,
@@ -357,6 +415,6 @@ class GrokAdapter:
             finished_ok=False,
             error_code=error_code,
             error_detail=f"{exc.__class__.__name__}: {exc}"[:500],
-            raw_json=json.dumps({"response": None, "web_search_calls": 0}),
+            raw_json=raw_json,
             timestamp=_utc_now(),
         )
