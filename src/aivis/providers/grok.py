@@ -19,6 +19,9 @@ xAI 的 Responses API 与 OpenAI 的同形,官方文档示例即用 `openai` SDK
     ——真机 max_turns=3 时计费调用 3~8 次。`max_tool_calls` 真机验证被 xAI 忽略(不传,
     不假装有这个上限);`include: ["inline_citations"]` 被 400 拒绝(Responses API 上默认即开)。
     硬封顶靠 probe 按真实花费执行;
+  - 流式接收(`stream=True`),不自动重试(一次 ask = 一次请求):超时 = 120 秒收不到任何数据,
+    另有单次调用 900 秒总时长兜底;结果只取终止事件带的完整 response(真机核实与非流式同形,
+    理由与数据见 _IDLE_TIMEOUT_SECONDS 处及 ARCHITECTURE §11);
   - xAI 的 web_search **没有区域参数**(目录标 supports_region=False,
     清单如实记 region_applied=False);
   - temperature 可传且被回显(目录标 supports_temperature=True);推理强度用各模型默认,不干预;
@@ -37,10 +40,12 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import monotonic as _monotonic
 from typing import Any, cast
 
 import openai
-from openai.types.responses import Response
+from openai import Stream
+from openai.types.responses import Response, ResponseStreamEvent
 
 from aivis.contracts.adapter import FatalProviderError, ModelInfo
 from aivis.contracts.config import FrozenConfig, Question
@@ -56,7 +61,15 @@ _SEARCH_COST_PER_CALL = 5.0 / 1000.0
 _TICKS_PER_USD = 1e10  # usage.cost_in_usd_ticks 的单位
 _LONG_CONTEXT_TOKENS = 200_000  # 提示达到此阈值:整次请求所有 token 按 2 倍单价
 _MAX_OUTPUT_TOKENS = 8192
-_TIMEOUT_SECONDS = 900.0  # xAI 文档建议推理模型客户端超时 ≥ 900 秒
+# 流式接收(xAI 文档对代理式工具调用"强烈建议"):服务端边搜边发事件,连接上一直有数据,
+# 不会被中间网络设备当空闲连接掐掉。于是客户端超时的含义变成"多久收不到任何数据":
+# 真机(grok-4.3,2026-11-19)1.5 秒到首个事件、全程 23 秒、事件间最长空档 5.5 秒 → 取 120 秒
+# (≈最长空档的 20 倍,也长于真机见过的任何一次完整调用 74 秒;只有一个模型一次调用的样本)。
+_IDLE_TIMEOUT_SECONDS = 120.0
+# 一直有数据却迟迟不结束的兜底:单次调用总时长上限(xAI 文档对非流式建议的客户端超时即 900 秒)
+_TOTAL_DEADLINE_SECONDS = 900.0
+# 不自动重试(SDK 默认 2 次):重试的请求若已在服务端计费,花费进不了账;出错就如实记一次失败
+_MAX_RETRIES = 0
 # 估算口径(保守上界,按"轮"计——max_uses 传给 max_turns,卡的是轮数)。
 # 真机校准(2026-11-19,6 个模型共 8 次调用,max_turns=3):计费工具调用 3~8 次、
 # 输入 2.1 万~11.1 万 token(其中最多 6 万命中缓存,估算一律按未命中价)、输出最多 4,212。
@@ -231,7 +244,7 @@ class GrokAdapter:
             return self._failure(question, run_id, run_index, "rate_limit", e)
         except (openai.APITimeoutError, openai.APIConnectionError) as e:
             return self._failure(question, run_id, run_index, "timeout", e)
-        except openai.APIStatusError as e:
+        except openai.APIError as e:  # 其余状态码错误,以及流中途服务端发来的 error 事件
             return self._failure(question, run_id, run_index, "other", e)
         try:
             return self._parse(question, run_id, run_index, response)
@@ -241,7 +254,32 @@ class GrokAdapter:
             return self._failure(question, run_id, run_index, "parse_error", e, response=response)
 
     def _send(self, params: dict[str, Any]) -> Response:
-        """唯一网络触点(测试以替身覆盖)。"""
+        """唯一网络触点(测试以替身覆盖)。流式接收,返回终止事件带的完整 Response。
+
+        中途的事件(搜索进度、文字增量)只用来保持连接,不参与结果:解析只认终止事件
+        (completed / incomplete / failed)里那份完整 response,与非流式是同一个对象形状(真机核实)。
+        流中途超时/断线由 SDK 包成 APITimeoutError / APIConnectionError,交 ask 记为失败
+        ——那种情况拿不到 usage,花费只能记 0(服务端可能已计费,如实说明,无法补记)。
+        """
+        started = _monotonic()
+        client = self._ensure_client()
+        stream = cast(Stream[ResponseStreamEvent], client.responses.create(stream=True, **params))
+        with stream:
+            for event in stream:
+                if (
+                    event.type == "response.completed"
+                    or event.type == "response.incomplete"
+                    or event.type == "response.failed"
+                ):
+                    return event.response
+                if _monotonic() - started > _TOTAL_DEADLINE_SECONDS:
+                    raise openai.APITimeoutError(request=stream.response.request)
+        raise openai.APIConnectionError(
+            message="流在收到最终响应(response.completed 等)之前就结束了",
+            request=stream.response.request,
+        )
+
+    def _ensure_client(self) -> openai.OpenAI:
         if self._client is None:
             key = os.environ.get(_ENV_KEY)
             if not key:
@@ -249,7 +287,12 @@ class GrokAdapter:
                     f"未检测到 {_ENV_KEY} 环境变量。"
                     "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
                 )
-            client = openai.OpenAI(api_key=key, base_url=_BASE_URL, timeout=_TIMEOUT_SECONDS)
+            client = openai.OpenAI(
+                api_key=key,
+                base_url=_BASE_URL,
+                timeout=_IDLE_TIMEOUT_SECONDS,  # 流式下 = 两段数据之间最长等多久
+                max_retries=_MAX_RETRIES,
+            )
             # SDK 构造时会从环境读一批给 OpenAI 用的东西并随每个请求发出:OPENAI_ORG_ID /
             # OPENAI_PROJECT_ID(账号标识),以及 OPENAI_CUSTOM_HEADERS 里的任意请求头——后者连
             # Authorization 都能顶替掉(那样发给 x.ai 的就成了 OpenAI 的凭据)。一律清掉,不带给 x.ai。
@@ -258,7 +301,7 @@ class GrokAdapter:
             client.project = None
             client._custom_headers = {}
             self._client = client
-        return cast(Response, self._client.responses.create(**params))
+        return self._client
 
     def _build_params(self, question: Question, cfg: FrozenConfig) -> dict[str, Any]:
         params: dict[str, Any] = {

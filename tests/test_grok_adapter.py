@@ -5,6 +5,7 @@
 """
 
 import json
+from collections.abc import Callable
 from typing import Any, cast
 
 import httpx2 as httpx  # openai 3.x 基于 httpx2
@@ -17,6 +18,7 @@ from aivis.contracts.adapter import FatalProviderError, SurfaceSpec
 from aivis.contracts.config import FrozenConfig
 from aivis.contracts.records import RawResponse
 from aivis.providers import catalog, registry
+from aivis.providers import grok as grok_module
 from aivis.providers.grok import _SPECS, GrokAdapter, _cited_sentence
 
 # ---------------------------------------------------------------- 响应构造器
@@ -338,9 +340,7 @@ def test_client_targets_xai_only_and_drops_openai_identity(
     real_client = openai.OpenAI
 
     def fake_client(**kw: Any) -> openai.OpenAI:
-        return real_client(
-            **kw, http_client=httpx.Client(transport=httpx.MockTransport(handler)), max_retries=0
-        )
+        return real_client(**kw, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
 
     monkeypatch.setattr(openai, "OpenAI", fake_client)
     with pytest.raises(FatalProviderError):
@@ -352,6 +352,165 @@ def test_client_targets_xai_only_and_drops_openai_identity(
     assert "x-leak-tenant" not in seen["headers"]
     assert seen["body"]["max_turns"] == demo_cfg.max_uses  # extra_body 真的进了请求体
     assert seen["body"]["store"] is False and "instructions" not in seen["body"]
+
+
+def test_one_request_per_ask_no_silent_retries_and_bounded_wait(
+    demo_cfg: FrozenConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """一次 ask 只发一次请求:SDK 默认会自动重试 2 次,重试的那几次若已在服务端计费,
+    花费进不了账(只记成一次 $0 的失败)。出错就如实记一次失败,由流水线继续/续跑。
+    流式接收下客户端超时 = 多久收不到数据(120 秒),不再是"整次调用必须在 N 秒内做完"。"""
+    attempts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(request.url.path)
+        return httpx.Response(500, json={"error": "upstream hiccup"})
+
+    clients = _wire(monkeypatch, handler)
+    resp = _real_ask(demo_cfg)
+    assert not resp.finished_ok and resp.error_code == "other"
+    assert len(attempts) == 1
+    assert clients[0].max_retries == 0 and clients[0].timeout == 120.0
+
+
+# ---------------------------------------------------------------- 流式接收
+#
+# 真机核实(2026-11-19,grok-4.3):流式下 1.5 秒到首个事件、全程 23 秒、事件间最长空档 5.5 秒;
+# 终止事件 response.completed 带完整 response(引用标注、cost_in_usd_ticks、计费调用数俱全)。
+
+
+def _wire(
+    monkeypatch: pytest.MonkeyPatch, handler: Callable[[httpx.Request], httpx.Response]
+) -> list[openai.OpenAI]:
+    """让适配器真实走 SDK → 假传输层(不联网);返回它建出来的客户端供断言。"""
+    monkeypatch.setenv("XAI_API_KEY", "xai-test-not-a-real-key")
+    clients: list[openai.OpenAI] = []
+    real_client = openai.OpenAI
+
+    def fake_client(**kw: Any) -> openai.OpenAI:
+        client = real_client(**kw, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(openai, "OpenAI", fake_client)
+    return clients
+
+
+def _real_ask(cfg: FrozenConfig) -> RawResponse:
+    return GrokAdapter(model="grok-4.3").ask(cfg.questions[0], cfg, run_id="r", run_index=0)
+
+
+def _sse(events: list[dict[str, Any]]) -> httpx.Response:
+    body = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
+    return httpx.Response(
+        200, headers={"content-type": "text/event-stream"}, content=body.encode("utf-8")
+    )
+
+
+def _final_event(kind: str, response: Response) -> dict[str, Any]:
+    return {"type": kind, "sequence_number": 99, "response": response.model_dump(mode="json")}
+
+
+_PROGRESS_EVENTS: list[dict[str, Any]] = [
+    {"type": "response.web_search_call.searching", "sequence_number": 1, "item_id": "ws_1"},
+    {
+        "type": "response.output_text.delta",
+        "sequence_number": 2,
+        "item_id": "msg_1",
+        "output_index": 1,
+        "content_index": 0,
+        "delta": "Osprey",
+        "logprobs": [],
+    },
+]
+
+
+def test_stream_returns_the_full_final_response(
+    demo_cfg: FrozenConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """流式接收:中途事件只用来保持连接,结果取终止事件带的完整 response,解析与非流式同一条路。"""
+    text, anns = _marked([("Osprey is the top pick", ["https://a.example/1"])])
+    final = _response(
+        [_search_call(), _message(text, anns)], usage=_usage(cost_in_usd_ticks=491_092_500)
+    )
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return _sse([*_PROGRESS_EVENTS, _final_event("response.completed", final)])
+
+    _wire(monkeypatch, handler)
+    adapter = GrokAdapter(model="grok-4.3")
+    resp = adapter.ask(demo_cfg.questions[0], demo_cfg, run_id="r", run_index=0)
+    assert seen["body"]["stream"] is True and seen["body"]["max_turns"] == demo_cfg.max_uses
+    assert resp.finished_ok and resp.answer_text == text and resp.search_count == 1
+    assert [(c.url, c.cited_text) for c in resp.citations] == [
+        ("https://a.example/1", "Osprey is the top pick")
+    ]
+    assert adapter.actual_cost_usd(resp) == pytest.approx(0.04910925)
+
+
+def test_stream_incomplete_is_recorded_with_its_response_and_cost(
+    demo_cfg: FrozenConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cut = _response(
+        [_message("cut")],
+        status="incomplete",
+        incomplete_reason="max_output_tokens",
+        usage=_usage(cost_in_usd_ticks=200_000_000),
+    )
+    _wire(monkeypatch, lambda request: _sse([_final_event("response.incomplete", cut)]))
+    adapter = GrokAdapter(model="grok-4.3")
+    resp = adapter.ask(demo_cfg.questions[0], demo_cfg, run_id="r", run_index=0)
+    assert not resp.finished_ok and resp.error_code == "other"
+    assert "max_output_tokens" in (resp.error_detail or "")
+    assert adapter.actual_cost_usd(resp) == pytest.approx(0.02)  # 被截断的那次也花了钱,照记
+
+
+def test_stream_failed_event_is_recorded(
+    demo_cfg: FrozenConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    failed = _response([], status="failed")
+    _wire(monkeypatch, lambda request: _sse([_final_event("response.failed", failed)]))
+    resp = _real_ask(demo_cfg)
+    assert not resp.finished_ok and resp.error_code == "other"
+    assert "status=failed" in (resp.error_detail or "")
+
+
+def test_stream_cut_off_before_final_event_is_a_failure(
+    demo_cfg: FrozenConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """连接中途断了(只收到进度事件,没等到终止事件):记为失败,不许当成空回答。"""
+    _wire(monkeypatch, lambda request: _sse(_PROGRESS_EVENTS))
+    resp = _real_ask(demo_cfg)
+    assert not resp.finished_ok and resp.error_code == "timeout"
+    assert resp.answer_text == "" and "APIConnectionError" in (resp.error_detail or "")
+
+
+def test_stream_error_event_is_recorded(
+    demo_cfg: FrozenConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    error = {"type": "error", "sequence_number": 3, "error": {"message": "upstream exploded"}}
+    _wire(monkeypatch, lambda request: _sse([*_PROGRESS_EVENTS, error]))
+    resp = _real_ask(demo_cfg)
+    assert not resp.finished_ok and resp.error_code == "other"
+    assert "upstream exploded" in (resp.error_detail or "")
+
+
+def test_stream_total_deadline_stops_an_endless_stream(
+    demo_cfg: FrozenConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """一直有数据但迟迟不结束:空闲超时管不住,靠单次调用总时长上限(900 秒)兜底。"""
+    final = _response([_message("late")])
+    _wire(
+        monkeypatch,
+        lambda request: _sse([*_PROGRESS_EVENTS, _final_event("response.completed", final)]),
+    )
+    ticks = iter([0.0, 901.0, 902.0, 903.0, 904.0])
+    monkeypatch.setattr(grok_module, "_monotonic", lambda: next(ticks))
+    resp = _real_ask(demo_cfg)
+    assert not resp.finished_ok and resp.error_code == "timeout"
+    assert "APITimeoutError" in (resp.error_detail or "")
 
 
 # ---------------------------------------------------------------- 失败路径

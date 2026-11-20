@@ -6,7 +6,7 @@
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-357%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-374%20passing-brightgreen)](tests/)
 [![runs locally](https://img.shields.io/badge/runs-100%25%20local-success)](#4--bring-your-own-api-key)
 [![cost](https://img.shields.io/badge/author%20fee-%240-success)](#what-it-costs)
 
@@ -129,7 +129,7 @@ The engine is **provider-agnostic by design**: every model sits behind one adapt
 ### For developers & advanced use
 
 - **Measure your own brand from the CLI / Claude Skill** (SETUP mode): `aivis init` scaffolds a focal config → `aivis validate` checks it → `aivis estimate` prices a run → `aivis run` executes it. See [SKILL.md](SKILL.md).
-- **Multi-engine from the CLI:** `aivis models` lists all 30 surfaces with flags and per-run estimates; `aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` runs each surface, writes one report per surface plus `analysis/compare/<id>/comparison.html`, and prints the bill. Keys are read only from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` / `XAI_API_KEY`.
+- **Multi-engine from the CLI:** `aivis models` lists all 30 surfaces with flags and per-run estimates; `aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` runs each surface, writes one report per surface plus `analysis/compare/<id>/comparison.html`, and prints the bill. Within a surface, questions are asked up to 4 at a time (`--concurrency N`; `1` = strictly one by one) — same calls, same results, just less waiting; if a budget cap is hit, up to N−1 calls already in flight still complete and are billed. Keys are read only from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` / `XAI_API_KEY`.
 - **Project map:** [SKILL.md](SKILL.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CLAUDE.md](CLAUDE.md) (behavioral red lines) · `src/aivis/contracts/` (data contracts) · `configs/demo/` (neutral 5-brand demo).
 - **Quality bar:** contracts frozen, three-layer storage (raw is append-only), deterministic pure scoring, golden tests, CI guards (ruff / mypy / import-linter / gitleaks / pytest) — **254 tests green.**
 

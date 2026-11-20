@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from aivis import cli
+from aivis.pipeline import probe as probe_module
 from aivis.storage.raw import RawStore
 
 
@@ -142,3 +143,36 @@ def test_models_command_lists_catalog(capsys: pytest.CaptureFixture[str]) -> Non
         assert needle in out
     assert "no-region" in out and "unpinned" in out and "search-only" in out
     assert "PERPLEXITY_API_KEY" in out and "api.openai.com" in out
+
+
+def test_concurrency_flag_reaches_probe_and_defaults_to_four(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--concurrency 原样传给 probe(CLI 只转发,不自己调度);不写时默认同时 4 个调用。"""
+    seen: list[int] = []
+    real_probe = probe_module.run_probe
+
+    def spy(*args: object, **kwargs: object) -> object:
+        seen.append(int(str(kwargs["concurrency"])))
+        return real_probe(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(cli, "run_probe", spy)
+    base = ["--config-dir", "configs/demo", "--yes"]
+    assert cli.main(["probe", *base, "--data-dir", str(tmp_path / "a")]) == 0
+    assert cli.main(["probe", *base, "--data-dir", str(tmp_path / "b"), "--concurrency", "1"]) == 0
+    assert seen == [cli.DEFAULT_CONCURRENCY, 1] and cli.DEFAULT_CONCURRENCY == 4
+    # 并发与串行落盘的是同一批记录(只是先后不同)
+    keys = [
+        {
+            (r.question_id, r.run_index, r.answer_text)
+            for r in RawStore(tmp_path / d / "raw").read_responses()
+        }
+        for d in ("a", "b")
+    ]
+    assert keys[0] == keys[1] and len(keys[0]) == 72
+
+
+def test_concurrency_flag_rejects_zero(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["probe", "--data-dir", str(tmp_path), "--concurrency", "0"])
+    assert exc.value.code == 2

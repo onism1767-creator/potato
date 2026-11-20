@@ -33,6 +33,15 @@ from aivis.storage.analysis import AnalysisStore
 from aivis.storage.evidence import EvidenceStore
 from aivis.storage.raw import RawStore
 
+DEFAULT_CONCURRENCY = 4  # probe 同时在途的调用数上限(--concurrency;1 = 逐个串行)
+
+
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"必须是 ≥ 1 的整数,收到 {text!r}")
+    return value
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -66,6 +75,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--run-id", default=None, help="指定运行 ID(默认:probe 新建/其余取最新)")
     parser.add_argument("--yes", action="store_true", help="非交互确认成本闸门")
+    parser.add_argument(
+        "--concurrency",
+        type=_positive_int,
+        default=DEFAULT_CONCURRENCY,
+        help=f"probe 同时在途的调用数上限(默认 {DEFAULT_CONCURRENCY};1 = 逐个串行)。"
+        "并发的是不同的题,只改先后不改内容;被引擎限速(失败数变多)就调小。"
+        "预算封顶时已发出的调用收不回,最多多花 N-1 次调用的钱",
+    )
     parser.add_argument(
         "--sequential",
         action="store_true",
@@ -175,6 +192,7 @@ def _cmd_probe(
         run_id=args.run_id,
         confirm_cost=confirm,
         progress=progress,
+        concurrency=args.concurrency,
     )
     print(f"probe 完成: run_id={manifest.run_id}  search_count={manifest.search_count}")
     return manifest.run_id

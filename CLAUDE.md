@@ -139,7 +139,7 @@ ai-visibility/
   configs/demo/        # 5 品牌中立 demo：questions.yml / brands.yml
 ```
 
-CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `models` / `estimate`；全局 flag `--provider`（默认 mock）、`--model`（精确 id）、`--tier`（档位便利选项）、`--surfaces`（多表面 provider:model 列表，逐个跑 + 并列对比 + 账单）。
+CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `models` / `estimate`；全局 flag `--provider`（默认 mock）、`--model`（精确 id）、`--tier`（档位便利选项）、`--surfaces`（多表面 provider:model 列表，逐个跑 + 并列对比 + 账单）、`--concurrency`（同一表面内同时在途的调用数上限，默认 4；1 = 逐个串行）。
 **🟥 CLI 与 SKILL.md 都薄如纸**：只负责编排，所有逻辑在可被 import 的库里（否则逻辑漏进测不到的地方）。
 
 ---
@@ -189,7 +189,7 @@ CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `m
 
 **v0.2 已做（2026-09，多引擎）**：四家真引擎适配器（Claude 6 / OpenAI 6 / Gemini 5 / Perplexity 4，含 Search API 纯搜索表面）· 模型目录 + 注册表 · `--model` / `--surfaces` 多表面串跑 · 并列对比报告（只并列不混总分）· 账单（清单记真实花费）· 清单诚实字段（温度/区域是否生效、表面类型）· GUI 多选引擎 + 每家密钥框 + 合计预估 · `models` 子命令。**未做**：跨引擎并行跑（串行）· 整批总预算上限（仍是每表面各自受限）· Gemini Interactions API（仍用 generateContent）。
 
-**v0.2 之后的增量（2026-11）**：第五家 Grok（xAI，6 个表面，共 30 个表面）——复用 `openai` SDK 指向 `api.x.ai`，未加依赖；只开 `web_search`（不开 `x_search`）；无区域参数；零宽"浏览来源"标注不算引用。详见 ARCHITECTURE §11。
+**v0.2 之后的增量（2026-11）**：第五家 Grok（xAI，6 个表面，共 30 个表面）——复用 `openai` SDK 指向 `api.x.ai`，未加依赖；只开 `web_search`（不开 `x_search`）；无区域参数；零宽"浏览来源"标注不算引用；Grok 走流式接收（超时 = 多久收不到数据）。详见 ARCHITECTURE §11。探测支持有上限的并发（不同的题同时问、同一题一次只发一个调用、原始层仍只由 probe 主线程写；表面之间仍串行），详见 ARCHITECTURE §12。
 
 **v0.1 要做（IN，已完成）**：`contracts/` 全部冻结类型；`mock` 适配器；三类数据存储（raw 只追加，JSONL+SQLite 即可）；`probe→extract→verify→score→report` 在 mock 上端到端跑通，产出最简真实的 **Markdown + CSV** 报告；`extract`（owned/earned + 保守计数）与 `score`（六指标 + Wilson 区间）真实实现 + 黄金测试；`verify` 最小版（URL 规范化 + 可达性 + 来源分类 + 三档标签，**不含真页面抓取摘录**）；薄 CLI；`configs/demo/` 5 品牌中立 demo；CI 绿。
 
