@@ -71,6 +71,9 @@ _HEALTH_FLAG_REASON = {
 }
 
 
+_NOTE_SPAN = '<span style="font-size:12.5px;line-height:1.5;">'
+
+
 def _health_reason(health: HealthSummary) -> str:
     """把驱动健康灯转黄/红的 flag 翻成简短英文原因(逗点分隔);无则空串。"""
     return " · ".join(_HEALTH_FLAG_REASON[f] for f in health.flags if f in _HEALTH_FLAG_REASON)
@@ -118,20 +121,23 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
     if any(f.startswith("partial-run") for f in h.flags):
         asked = bundle.n_responses_ok + bundle.n_responses_error
         p.append(
-            '<div class="note" style="margin-bottom:20px;color:#8A5A00;">'
+            # .note 是弹性布局:正文必须包在一个 span 里,否则 <b>/<code> 会各占一列
+            f'<div class="note" style="margin-bottom:20px;color:#8A5A00;">{_NOTE_SPAN}'
             f"<b>Partial run.</b> This run stopped at the budget cap after {asked} of up to "
             f"{bundle.n_questions * bundle.n_runs} calls. Every number below covers only the "
             "questions asked so far (later questions may not have been asked at all), so it is "
-            "not a complete baseline. Raise the cap and resume the same run to finish it.</div>"
+            "not a complete baseline. Raise the cap and resume the same run to finish it."
+            "</span></div>"
         )
     # 离线核验:可达性与 verified 档是假设值,不能让 100% 看起来像真的查过
     offline = any(ev.check_method == "offline-assumed" for ev in bundle.evidence)
     if offline:
         p.append(
-            '<div class="note" style="margin-bottom:20px;color:#8A5A00;">'
+            f'<div class="note" style="margin-bottom:20px;color:#8A5A00;">{_NOTE_SPAN}'
             "Cited links were <b>not fetched</b> in this run (offline mode): reachability, "
             "citation validity and the &ldquo;verified&rdquo; tier are <b>assumed</b>, not "
-            "checked. Run with <code>--check fetch</code> to really fetch each cited page.</div>"
+            'checked. Run with <code style="white-space:nowrap;">--check fetch</code> '
+            "to really fetch each cited page.</span></div>"
         )
     # 英雄 + 健康三卡
     hero = ranked[0]
