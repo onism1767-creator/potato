@@ -13,6 +13,7 @@
 
 import json
 import os
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -31,6 +32,9 @@ from aivis.providers import catalog
 # 新版 web_search_20260209 带"动态过滤"(模型写代码筛结果),实测内联引用恒为 0
 # (12 vs 0 的对照),且过滤代码会偶发崩溃——会让核心引用指标失效,故不用。
 _TOOL_TYPE = "web_search_20250305"
+# 端点钉死官方地址:环境里的 ANTHROPIC_BASE_URL(常是为别的工具设的中转站)不许把密钥和问题
+# 带到别处 —— 清单、目录和界面都写着"只发往 api.anthropic.com"
+_BASE_URL = "https://api.anthropic.com"
 
 # 三档便利映射(`--tier`);显式 `model=` 优先。standard 沿用 2026-06 经真实 API 验证的 Sonnet 4.6。
 _TIER_MODELS = {
@@ -127,6 +131,7 @@ class AnthropicAdapter:
         self._model = model
         self._spec = _SPECS[model]
         self._client: anthropic.Anthropic | None = None  # 惰性创建:构造不要求密钥
+        self._client_lock = threading.Lock()  # 并发探测时多个线程同时首次调用,只建一个
 
     @property
     def provider_name(self) -> str:
@@ -219,18 +224,28 @@ class AnthropicAdapter:
         except anthropic.APIStatusError as e:
             return self._failure(question, run_id, run_index, responses, "other", e)
 
-        return self._parse(question, run_id, run_index, responses)
+        try:
+            return self._parse(question, run_id, run_index, responses)
+        except (TypeError, ValueError, AttributeError, KeyError, IndexError) as e:
+            # 返回形状出乎意料时钱已经花了:原样留底、记为失败、花费照记,
+            # 不让异常冲出去(否则这次调用既没留底也没进账,整批还会崩在这里)
+            return self._failure(question, run_id, run_index, responses, "parse_error", e)
 
     def _send(self, params: dict[str, Any]) -> Message:
         """唯一网络触点(测试以替身覆盖)。"""
-        if self._client is None:
-            if not os.environ.get("ANTHROPIC_API_KEY"):
-                raise FatalProviderError(
-                    "未检测到 ANTHROPIC_API_KEY 环境变量。"
-                    "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
-                )
-            self._client = anthropic.Anthropic()
-        return cast(Message, self._client.messages.create(**params))
+        return cast(Message, self._get_client().messages.create(**params))
+
+    def _get_client(self) -> anthropic.Anthropic:
+        with self._client_lock:
+            if self._client is None:
+                key = os.environ.get("ANTHROPIC_API_KEY")
+                if not key:
+                    raise FatalProviderError(
+                        "未检测到 ANTHROPIC_API_KEY 环境变量。"
+                        "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
+                    )
+                self._client = anthropic.Anthropic(api_key=key, base_url=_BASE_URL)
+            return self._client
 
     def _build_params(self, messages: list[dict[str, Any]], cfg: FrozenConfig) -> dict[str, Any]:
         tool: dict[str, Any] = {"type": self._spec.tool_type, "name": "web_search"}
@@ -296,6 +311,11 @@ class AnthropicAdapter:
             details = getattr(responses[-1], "stop_details", None)
             category = getattr(details, "category", None) if details is not None else None
             error_detail = f"refusal(category={category})"
+        elif not " ".join(answer_parts).strip():
+            # 没有任何回答正文(思考把输出额度用完 / 搜完就结束这一轮):是失败,
+            # 不是一次"所有品牌都没被提到"的观测(五家同口径;CLAUDE.md §9.4)
+            finished_ok, error_code = False, "other"
+            error_detail = f"没有回答正文(stop_reason={responses[-1].stop_reason})"
 
         return RawResponse(
             run_id=run_id,

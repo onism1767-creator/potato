@@ -15,9 +15,11 @@
 唯一网络触点是 _send();单元测试以替身覆盖它,离线、零成本。
 """
 
+import contextlib
 import json
 import os
 import re
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -31,6 +33,8 @@ from aivis.contracts.records import Citation, ErrorCode, RawResponse
 from aivis.providers import catalog
 
 _TOOL_TYPE = "web_search"
+# 端点钉死官方地址:环境里的 OPENAI_BASE_URL(中转站/本地代理)不许把密钥和问题带到别处
+_BASE_URL = "https://api.openai.com/v1"
 _SURFACE_ID = "openai_responses_web_search"
 # web search $10 / 1k calls(所有模型;2026-09 官方 pricing)
 _SEARCH_COST_PER_CALL = 10.0 / 1000.0
@@ -92,6 +96,7 @@ class OpenAIAdapter:
         self._model = model
         self._spec = _SPECS[model]
         self._client: openai.OpenAI | None = None  # 惰性创建:构造不要求密钥
+        self._client_lock = threading.Lock()  # 并发探测时多个线程同时首次调用,只建一个
 
     @property
     def provider_name(self) -> str:
@@ -170,18 +175,27 @@ class OpenAIAdapter:
             return self._failure(question, run_id, run_index, "timeout", e)
         except openai.APIStatusError as e:
             return self._failure(question, run_id, run_index, "other", e)
-        return self._parse(question, run_id, run_index, response)
+        try:
+            return self._parse(question, run_id, run_index, response)
+        except (TypeError, ValueError, AttributeError, KeyError, IndexError) as e:
+            # 返回形状出乎意料时钱已经花了:原样留底、记为失败、花费照记,不让异常冲出去崩掉整批
+            return self._failure(question, run_id, run_index, "parse_error", e, response=response)
 
     def _send(self, params: dict[str, Any]) -> Response:
         """唯一网络触点(测试以替身覆盖)。"""
-        if self._client is None:
-            if not os.environ.get("OPENAI_API_KEY"):
-                raise FatalProviderError(
-                    "未检测到 OPENAI_API_KEY 环境变量。"
-                    "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
-                )
-            self._client = openai.OpenAI()
-        return cast(Response, self._client.responses.create(**params))
+        return cast(Response, self._get_client().responses.create(**params))
+
+    def _get_client(self) -> openai.OpenAI:
+        with self._client_lock:
+            if self._client is None:
+                key = os.environ.get("OPENAI_API_KEY")
+                if not key:
+                    raise FatalProviderError(
+                        "未检测到 OPENAI_API_KEY 环境变量。"
+                        "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
+                    )
+                self._client = openai.OpenAI(api_key=key, base_url=_BASE_URL)
+            return self._client
 
     def _build_params(self, question: Question, cfg: FrozenConfig) -> dict[str, Any]:
         tool: dict[str, Any] = {"type": _TOOL_TYPE}
@@ -249,6 +263,10 @@ class OpenAIAdapter:
         elif tool_failed:
             finished_ok, error_code = False, "tool_error"
             error_detail = "web_search_call status=failed"
+        elif not " ".join(answer_parts).strip():
+            # completed 却没有任何回答正文(只搜不答等):是失败,不是"谁都没提到"的观测(五家同口径)
+            finished_ok, error_code = False, "other"
+            error_detail = "response.status=completed 但没有回答正文"
 
         return RawResponse(
             run_id=run_id,
@@ -266,9 +284,24 @@ class OpenAIAdapter:
         )
 
     def _failure(
-        self, question: Question, run_id: str, run_index: int, error_code: ErrorCode, exc: Exception
+        self,
+        question: Question,
+        run_id: str,
+        run_index: int,
+        error_code: ErrorCode,
+        exc: Exception,
+        *,
+        response: Response | None = None,
     ) -> RawResponse:
-        """瞬时错误:显式记为失败并保留上下文,流水线继续(部分失败仍出报告)。"""
+        """瞬时错误:显式记为失败并保留上下文,流水线继续(部分失败仍出报告)。
+
+        response:已经拿到返回、只是解析不了时传入 —— 原样留底,花费才算得出来。
+        """
+        raw_json = json.dumps({"response": None, "web_search_calls": 0})
+        if response is not None:
+            # 连原样导出都不行时只能留空壳(错误详情里已有原因)
+            with contextlib.suppress(Exception):
+                raw_json = self._dump_raw(response, 0)
         return RawResponse(
             run_id=run_id,
             question_id=question.id,
@@ -280,7 +313,7 @@ class OpenAIAdapter:
             finished_ok=False,
             error_code=error_code,
             error_detail=f"{exc.__class__.__name__}: {exc}"[:500],
-            raw_json=json.dumps({"response": None, "web_search_calls": 0}),
+            raw_json=raw_json,
             timestamp=_utc_now(),
         )
 

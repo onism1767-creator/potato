@@ -23,9 +23,11 @@
 原样入档用 model_dump(warnings=False):SDK 的输出项联合类型在序列化时会打无害告警。
 """
 
+import contextlib
 import json
 import os
 import re
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -42,6 +44,8 @@ _AGENT_SURFACE_ID = "perplexity_agent_web_search"
 _SEARCH_SURFACE_ID = "perplexity_search_api"
 _AGENT_TOOL = "web_search"
 _SEARCH_MODEL_ID = "search"
+# 端点钉死官方地址:环境里的 PERPLEXITY_BASE_URL 不许把密钥和问题带到别处
+_BASE_URL = "https://api.perplexity.ai"
 _WEB_SEARCH_COST_PER_INVOCATION = 0.0025  # Agent API web_search 工具 $0.0025/次
 _SEARCH_API_COST_PER_REQUEST = 5.0 / 1000.0  # Search API $5/千次请求,无 token 费
 _SEARCH_API_MAX_RESULTS = 10
@@ -74,12 +78,13 @@ def _utc_now() -> str:
 
 
 def _client() -> perplexity.Perplexity:
-    if not os.environ.get("PERPLEXITY_API_KEY"):
+    key = os.environ.get("PERPLEXITY_API_KEY")
+    if not key:
         raise FatalProviderError(
             "未检测到 PERPLEXITY_API_KEY 环境变量。"
             "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
         )
-    return perplexity.Perplexity()
+    return perplexity.Perplexity(api_key=key, base_url=_BASE_URL)
 
 
 def _classify(exc: Exception) -> ErrorCode | None:
@@ -106,8 +111,22 @@ def _failure(
     model: str,
     error_code: ErrorCode,
     exc: Exception,
+    *,
+    response: Any = None,
 ) -> RawResponse:
-    """瞬时错误:显式记为失败并保留上下文,流水线继续(部分失败仍出报告)。"""
+    """瞬时错误:显式记为失败并保留上下文,流水线继续(部分失败仍出报告)。
+
+    response:已经拿到返回、只是解析不了时传入 —— 原样留底,花费才算得出来。
+    """
+    raw_json = json.dumps({"response": None})
+    if response is not None:
+        # 连原样导出都不行时只能留空壳(错误详情里已有原因)
+        with contextlib.suppress(Exception):
+            raw_json = json.dumps(
+                {"response": response.model_dump(mode="json", warnings=False)},
+                ensure_ascii=False,
+                sort_keys=True,
+            )
     return RawResponse(
         run_id=run_id,
         question_id=question.id,
@@ -119,7 +138,7 @@ def _failure(
         finished_ok=False,
         error_code=error_code,
         error_detail=f"{exc.__class__.__name__}: {exc}"[:500],
-        raw_json=json.dumps({"response": None}),
+        raw_json=raw_json,
         timestamp=_utc_now(),
     )
 
@@ -138,6 +157,7 @@ class PerplexityAdapter:
         self._model = model
         self._spec = _SPECS[model]
         self._client: perplexity.Perplexity | None = None
+        self._client_lock = threading.Lock()
 
     @property
     def provider_name(self) -> str:
@@ -207,13 +227,21 @@ class PerplexityAdapter:
                     f"详情: {e}"
                 ) from e
             return _failure(question, run_id, run_index, self._model, code, e)
-        return self._parse(question, run_id, run_index, response)
+        try:
+            return self._parse(question, run_id, run_index, response)
+        except (TypeError, ValueError, AttributeError, KeyError, IndexError) as e:
+            # 返回形状出乎意料时钱已经花了:原样留底、记为失败、花费照记,不让异常冲出去崩掉整批
+            return _failure(
+                question, run_id, run_index, self._model, "parse_error", e, response=response
+            )
 
     def _send(self, params: dict[str, Any]) -> ResponseCreateResponse:
         """唯一网络触点(测试以替身覆盖)。"""
-        if self._client is None:
-            self._client = _client()
-        return cast(ResponseCreateResponse, self._client.responses.create(**params))
+        with self._client_lock:  # 并发探测时多个线程同时首次调用,只建一个客户端
+            if self._client is None:
+                self._client = _client()
+            client = self._client
+        return cast(ResponseCreateResponse, client.responses.create(**params))
 
     def _build_params(self, question: Question, cfg: FrozenConfig) -> dict[str, Any]:
         tool: dict[str, Any] = {"type": _AGENT_TOOL}
@@ -311,6 +339,10 @@ class PerplexityAdapter:
         elif message_failed:
             finished_ok, error_code = False, "other"
             error_detail = "message item status=failed"
+        elif not answer_text.strip():
+            # completed 却没有任何回答正文:是失败,不是"谁都没提到"的观测(五家同口径)
+            finished_ok, error_code = False, "other"
+            error_detail = "response.status=completed 但没有回答正文"
 
         return RawResponse(
             run_id=run_id,
@@ -344,6 +376,7 @@ class PerplexitySearchAdapter:
 
     def __init__(self) -> None:
         self._client: perplexity.Perplexity | None = None
+        self._client_lock = threading.Lock()
 
     @property
     def provider_name(self) -> str:
@@ -396,10 +429,21 @@ class PerplexitySearchAdapter:
                     f"详情: {e}"
                 ) from e
             return _failure(question, run_id, run_index, _SEARCH_MODEL_ID, code, e)
-        citations = tuple(
-            Citation(url=r.url, title=r.title or None, cited_text=r.snippet or None, position=i)
-            for i, r in enumerate(response.results)
-        )
+        try:
+            citations = tuple(
+                Citation(url=r.url, title=r.title or None, cited_text=r.snippet or None, position=i)
+                for i, r in enumerate(response.results)
+            )
+        except (
+            TypeError,
+            ValueError,
+            AttributeError,
+            KeyError,
+            IndexError,
+        ) as e:  # 返回形状出乎意料:留底、记失败,不崩整批
+            return _failure(
+                question, run_id, run_index, _SEARCH_MODEL_ID, "parse_error", e, response=response
+            )
         return RawResponse(
             run_id=run_id,
             question_id=question.id,
@@ -419,6 +463,8 @@ class PerplexitySearchAdapter:
 
     def _send(self, params: dict[str, Any]) -> SearchCreateResponse:
         """唯一网络触点(测试以替身覆盖)。"""
-        if self._client is None:
-            self._client = _client()
-        return self._client.search.create(**params)
+        with self._client_lock:  # 并发探测时多个线程同时首次调用,只建一个客户端
+            if self._client is None:
+                self._client = _client()
+            client = self._client
+        return client.search.create(**params)

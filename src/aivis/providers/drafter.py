@@ -19,11 +19,15 @@ from typing import Any, Protocol, cast
 import anthropic
 from anthropic.types import Message
 
+from aivis import matching
 from aivis.contracts.config import Intent, Question
 
 _MAX_ATTEMPTS = 3  # 有界重试:JSON 不合法/配比不对则重起草,bounded run(CLAUDE.md §5)
 _COMP_DEFAULT_K = 8  # 竞品建议上限(略多于 ≤5 品牌,供用户筛)
 _TOOL_TYPE = "web_search_20250305"  # 经典版(ARCHITECTURE §9)
+# 端点钉死官方地址(与 providers/anthropic.py 同理):用户在向导里输入的密钥不许被环境里的
+# ANTHROPIC_BASE_URL 带到中转站去
+_BASE_URL = "https://api.anthropic.com"
 
 
 class DraftError(RuntimeError):
@@ -122,6 +126,13 @@ def draft_all(
     k_competitors: int = _COMP_DEFAULT_K,
 ) -> DraftResult:
     """按 §4 顺序起草全部 24 题 + 竞品建议。纯编排,网络在 sender 内。"""
+    if focal_name.strip() and matching.mentions_surfaces(category, [focal_name.strip()]):
+        # 品类里带着焦点品牌名(如"Acme 登山包")会被原样写进"盲起草"的中立题提示词,
+        # 盲就不盲了。在花钱调用之前拦下,让用户把品类改成不含品牌名的说法。
+        raise ValueError(
+            f"品类 {category!r} 里包含了你的品牌名 {focal_name!r}。"
+            '请把品类改成不带品牌名的通用说法(例如只写"登山包"),否则中立题就不是盲起草了。'
+        )
     neutral = _draft_neutral(sender, category=category, locale=locale)  # ① 盲
     competitors = _suggest_competitors(  # ② 竞品(排除焦点)
         sender, category=category, focal_name=focal_name, k=k_competitors
@@ -290,7 +301,7 @@ class AnthropicTextSender:
                     "未检测到 ANTHROPIC_API_KEY(AI 档起草需 key)。"
                     "密钥经显式参数或环境变量读取(CLAUDE.md §5)。"
                 )
-            self._client = anthropic.Anthropic(api_key=key)
+            self._client = anthropic.Anthropic(api_key=key, base_url=_BASE_URL)
         params: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
@@ -303,5 +314,10 @@ class AnthropicTextSender:
             if self._region:
                 tool["user_location"] = {"type": "approximate", "country": self._region}
             params["tools"] = [tool]
-        msg = cast(Message, self._client.messages.create(**params))
+        try:
+            msg = cast(Message, self._client.messages.create(**params))
+        except anthropic.APIError as e:
+            # 密钥不对 / 网络不通 / 限速:转成 DraftError,向导才能回一句人话
+            # (否则异常一路冲出去,浏览器只看到连接断开、界面永远停在"起草中")
+            raise DraftError(f"调用 Anthropic 起草失败({e.__class__.__name__}):{e}") from e
         return "".join(b.text for b in msg.content if b.type == "text")

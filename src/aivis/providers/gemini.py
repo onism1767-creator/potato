@@ -18,8 +18,11 @@
 唯一网络触点是 _send()(+ 可注入的跳转解析器);单元测试以替身覆盖,离线、零成本。
 """
 
+import contextlib
+import http.client
 import json
 import os
+import threading
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -54,6 +57,11 @@ _EST_OUTPUT_TOKENS = 4000  # 正文 + thinking(实测上限 ~3.9k)
 _REDIRECT_HOST_SUFFIX = "vertexaisearch.cloud.google.com"
 _REDIRECT_MAX_HOPS = 3
 _REDIRECT_TIMEOUT_S = 8.0
+# 端点钉死官方地址:环境里的 GOOGLE_GEMINI_BASE_URL 不许把密钥和问题带到别处
+_BASE_URL = "https://generativelanguage.googleapis.com/"
+# SDK 默认**不设超时**:连接被中间设备静默掐掉后,这次调用会永远不返回、整轮卡死。
+# 10 分钟与 OpenAI SDK 的默认一致(够慢模型 + 多次搜索用;单位是毫秒)
+_TIMEOUT_MS = 600_000
 _USER_AGENT = "aivis/0.2 (+https://github.com/onism1767-creator/potato)"
 _REFUSAL_FINISH = {"SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "RECITATION"}
 
@@ -116,7 +124,13 @@ def resolve_grounding_redirect(url: str) -> str | None:
                 current = str(e.headers.get("Location"))
                 continue
             return None
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        except (
+            urllib.error.URLError,
+            http.client.HTTPException,  # 坏状态行等:不是 OSError,以前会冲出解析器
+            TimeoutError,
+            OSError,
+            ValueError,
+        ):
             return None
     return current if not is_grounding_redirect(current) else None
 
@@ -140,6 +154,7 @@ class GeminiAdapter:
         self._resolver = redirect_resolver
         self._redirect_cache: dict[str, str | None] = {}
         self._client: genai.Client | None = None  # 惰性创建:构造不要求密钥
+        self._client_lock = threading.Lock()  # 🟥 必须加锁,见 _get_client
 
     @property
     def provider_name(self) -> str:
@@ -210,31 +225,44 @@ class GeminiAdapter:
             return self._failure(question, run_id, run_index, "other", e)
         except errors.APIError as e:  # ServerError 等
             return self._failure(question, run_id, run_index, "other", e)
-        except (
-            httpx.TimeoutException,
-            httpx.ConnectError,
-            httpx2.TimeoutException,
-            httpx2.ConnectError,
-            TimeoutError,
-            ConnectionError,
-        ) as e:
+        except (httpx.TransportError, httpx2.TransportError, TimeoutError, ConnectionError) as e:
+            # google-genai 不包装传输层异常:超时、连不上、连接被重置、对端没回就断开……
+            # 都是瞬时网络问题,记为失败继续跑(TransportError 是它们的公共基类),不许崩掉整批
             return self._failure(question, run_id, run_index, "timeout", e)
-        return self._parse(question, run_id, run_index, response)
+        try:
+            return self._parse(question, run_id, run_index, response)
+        except (TypeError, ValueError, AttributeError, KeyError, IndexError) as e:
+            # 返回形状出乎意料时钱已经花了:原样留底、记为失败、花费照记,不让异常冲出去崩掉整批
+            return self._failure(question, run_id, run_index, "parse_error", e, response=response)
 
     def _send(
         self, contents: str, config: types.GenerateContentConfig
     ) -> types.GenerateContentResponse:
         """唯一网络触点(测试以替身覆盖)。"""
-        if self._client is None:
-            if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
-                raise FatalProviderError(
-                    "未检测到 GEMINI_API_KEY(或 GOOGLE_API_KEY)环境变量。"
-                    "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
+        client = self._get_client()  # 局部变量握住客户端:调用期间它不会被回收
+        return client.models.generate_content(model=self._model, contents=contents, config=config)
+
+    def _get_client(self) -> genai.Client:
+        """惰性建客户端,**加锁只建一个**。
+
+        不加锁时并发探测的几个线程会各建一个 Client、后者覆盖前者;被覆盖的 Client 一被回收,
+        SDK 就关掉它的连接池 —— 而建它的那个线程正用着这个连接池发请求,于是在途请求直接报错、
+        整批中止(默认并发 4 下首批调用就会撞上;2026-11 终审用真 SDK + 本机假服务器复现)。
+        """
+        with self._client_lock:
+            if self._client is None:
+                # 两个变量都在时用 GEMINI_API_KEY(向导注入的就是它),不让 SDK 自己挑
+                key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+                if not key:
+                    raise FatalProviderError(
+                        "未检测到 GEMINI_API_KEY(或 GOOGLE_API_KEY)环境变量。"
+                        "API 密钥只经环境变量读取(CLAUDE.md §5),不支持写入代码或配置文件。"
+                    )
+                self._client = genai.Client(
+                    api_key=key,
+                    http_options=types.HttpOptions(base_url=_BASE_URL, timeout=_TIMEOUT_MS),
                 )
-            self._client = genai.Client()
-        return self._client.models.generate_content(
-            model=self._model, contents=contents, config=config
-        )
+            return self._client
 
     @staticmethod
     def _build_config(cfg: FrozenConfig) -> types.GenerateContentConfig:
@@ -319,6 +347,11 @@ class GeminiAdapter:
         elif finish not in (None, "STOP", "MAX_TOKENS"):
             finished_ok, error_code = False, "other"
             error_detail = f"finish_reason={finish}"
+        elif not "".join(answer_parts).strip():
+            # 没有任何回答正文(思考把输出额度用完 / 候选没有内容):是失败,
+            # 不是一次"所有品牌都没被提到"的观测(五家同口径;CLAUDE.md §9.4)
+            finished_ok, error_code = False, "other"
+            error_detail = f"没有回答正文(finish_reason={finish})"
 
         return RawResponse(
             run_id=run_id,
@@ -336,9 +369,24 @@ class GeminiAdapter:
         )
 
     def _failure(
-        self, question: Question, run_id: str, run_index: int, error_code: ErrorCode, exc: Exception
+        self,
+        question: Question,
+        run_id: str,
+        run_index: int,
+        error_code: ErrorCode,
+        exc: Exception,
+        *,
+        response: types.GenerateContentResponse | None = None,
     ) -> RawResponse:
-        """瞬时错误:显式记为失败并保留上下文,流水线继续(部分失败仍出报告)。"""
+        """瞬时错误:显式记为失败并保留上下文,流水线继续(部分失败仍出报告)。
+
+        response:已经拿到返回、只是解析不了时传入 —— 原样留底,花费才算得出来。
+        """
+        raw_json = json.dumps({"response": None, "redirects": {}})
+        if response is not None:
+            # 连原样导出都不行时只能留空壳(错误详情里已有原因)
+            with contextlib.suppress(Exception):
+                raw_json = self._dump_raw(response, {})
         return RawResponse(
             run_id=run_id,
             question_id=question.id,
@@ -350,7 +398,7 @@ class GeminiAdapter:
             finished_ok=False,
             error_code=error_code,
             error_detail=f"{exc.__class__.__name__}: {exc}"[:500],
-            raw_json=json.dumps({"response": None, "redirects": {}}),
+            raw_json=raw_json,
             timestamp=_utc_now(),
         )
 
