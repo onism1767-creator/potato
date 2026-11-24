@@ -201,6 +201,7 @@ CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `m
 **v0.2 之后的增量（2026-11）**：第五家 Grok（xAI，6 个表面；至此共 27 个真实表面，目录连同 3 个 mock 共 30 项）——复用 `openai` SDK 指向 `api.x.ai`，未加依赖；只开 `web_search`（不开 `x_search`）；无区域参数；零宽"浏览来源"标注不算引用；Grok 走流式接收（超时 = 多久收不到数据）。详见 ARCHITECTURE §11。探测支持有上限的并发（不同的题同时问、同一题一次只发一个调用、原始层仍只由 probe 主线程写；表面之间仍串行），详见 ARCHITECTURE §12。
 
 **v0.3（2026-11-23，终审修正）**：预算到顶不再丢数据——出带标注的阶段性报告，并**由用户决定**是否调高上限用同一 run_id 续跑（`budget_cap_usd` 只决定花到多少停，不算测量基线；配置锁比对 `FrozenConfig.baseline_fingerprint()`）· 空回答五家统一记失败 · 各家端点钉死官方地址（环境里的中转站地址不生效）· Gemini 建客户端加锁并设超时 · 原始层容忍半截行 · 探测被打断时在途调用照常落盘 · 序贯采样只把成功回答当观测 · 向导/核验加固。决策与**已知待办**见 ARCHITECTURE §13。
+发布后同日(用户拍板):**配置契约收紧**——不认识的键名、重复的题目 id、重复的品牌名(不分大小写)当场报错；只拒绝坏配置，合法配置的指纹不变（v0.3.0 的便携包里没有这一条）。
 
 **v0.1 要做（IN，已完成）**：`contracts/` 全部冻结类型；`mock` 适配器；三类数据存储（raw 只追加；实际落地为 JSONL + JSON 文件，未用 SQLite）；`probe→extract→verify→score→report` 在 mock 上端到端跑通，产出最简真实的 **Markdown + CSV** 报告；`extract`（owned/earned + 保守计数）与 `score`（六指标 + Wilson 区间）真实实现 + 黄金测试；`verify` 最小版（URL 规范化 + 可达性 + 来源分类 + 三档标签，**不含真页面抓取摘录**）；薄 CLI；`configs/demo/` 5 品牌中立 demo；CI 绿。
 

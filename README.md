@@ -6,7 +6,7 @@
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-470%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-491%20passing-brightgreen)](tests/)
 [![runs locally](https://img.shields.io/badge/runs-100%25%20local-success)](#4--bring-your-own-api-key)
 [![cost](https://img.shields.io/badge/author%20fee-%240-success)](#what-it-costs)
 
@@ -134,7 +134,7 @@ The engine is **provider-agnostic by design**: every model sits behind one adapt
 - **Multi-engine from the CLI:** `aivis models` lists all 30 catalog entries (27 real models + 3 mock) with flags and per-run estimates; `aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` runs each surface, writes one report per surface plus `analysis/compare/<id>/comparison.html`, and prints the bill. Within a surface, questions are asked up to 4 at a time (`--concurrency N`; `1` = strictly one by one) — same calls, same results, just less waiting; if a budget cap is hit, up to N−1 calls already in flight still complete and are billed, the run writes a partial report and exits with code 6, and `aivis run --provider … --model … --run-id <id>` resumes it once you raise `budget_cap_usd`. Keys are read only from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` / `XAI_API_KEY`.
 - **Other flags:** `--sequential` (adaptive sampling — stop asking a question once its answers agree; default is a fixed 3 rounds), `--check offline|head|fetch` (how cited links are verified; default `offline`), `--run-id` (resume a run), `--data-dir`, `aivis gui --port N --no-open`.
 - **Project map:** [SKILL.md](SKILL.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CLAUDE.md](CLAUDE.md) (behavioral red lines) · `src/aivis/contracts/` (data contracts) · `configs/demo/` (neutral 5-brand demo).
-- **Quality bar:** contracts frozen, three-layer storage (raw is append-only), deterministic pure scoring, golden tests, CI guards (ruff / mypy / import-linter / gitleaks / pytest) — **470 tests green.**
+- **Quality bar:** contracts frozen, three-layer storage (raw is append-only), deterministic pure scoring, golden tests, CI guards (ruff / mypy / import-linter / gitleaks / pytest) — **491 tests green.**
 
 ## License
 

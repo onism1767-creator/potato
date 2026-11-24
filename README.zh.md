@@ -6,7 +6,7 @@
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-470%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-491%20passing-brightgreen)](tests/)
 [![runs locally](https://img.shields.io/badge/%E5%85%A8%E7%A8%8B-%E6%9C%AC%E5%9C%B0%E8%BF%90%E8%A1%8C-success)](#4--准备你自己的-api-key)
 [![cost](https://img.shields.io/badge/%E4%BD%9C%E8%80%85%E6%94%B6%E8%B4%B9-%240-success)](#花多少钱)
 
@@ -134,7 +134,7 @@ Potato 测量你的品牌在 **AI 联网回答里**的可见度——**Claude、
 - **CLI 多引擎:**`aivis models` 列出目录里全部 30 项(27 个真实模型 + 3 个 mock,含标记和按当前配置的预估);`aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` 逐个表面跑、每个表面一份报告,再出 `analysis/compare/<id>/comparison.html` 并打印账单。同一个表面内默认同时问 4 道题(`--concurrency N`;`1` = 严格逐个问)——调用和结果都不变,只是少等;代价是花到预算上限时已发出去的调用收不回,最多多花 N−1 次调用的钱;这时会写出阶段性报告、以退出码 6 结束,调高 `budget_cap_usd` 后用 `aivis run --provider … --model … --run-id <id>` 可以接着跑完。密钥只从 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` / `XAI_API_KEY` 读取。
 - **其它开关:**`--sequential`(自适应采样:某道题几轮答案一致就不再多问;默认固定问 3 轮)、`--check offline|head|fetch`(被引链接怎么核验;默认 `offline`)、`--run-id`(续跑)、`--data-dir`、`aivis gui --port N --no-open`。
 - **项目导读:**[SKILL.md](SKILL.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CLAUDE.md](CLAUDE.md)(行为红线)· `src/aivis/contracts/`(数据契约)· `configs/demo/`(中立 5 品牌 demo)。
-- **质量基线:**契约冻结、三层存储(raw 只追加)、确定性纯函数计分、黄金测试、CI 检查员(ruff / mypy / import-linter / gitleaks / pytest)——**470 测试全绿。**
+- **质量基线:**契约冻结、三层存储(raw 只追加)、确定性纯函数计分、黄金测试、CI 检查员(ruff / mypy / import-linter / gitleaks / pytest)——**491 测试全绿。**
 
 ## License
 

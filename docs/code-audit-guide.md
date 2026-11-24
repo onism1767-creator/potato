@@ -6,7 +6,7 @@
 > ③ 给出**常见修改的操作手册**(改哪里、什么顺序、动哪些测试、护栏怎么接住你);
 > ④ **诚实**列出真实的可修改性痛点 + 改进建议(§9,不回避)。
 > **配套**:架构决策见 [ARCHITECTURE.md](../ARCHITECTURE.md);行为红线见 [CLAUDE.md](../CLAUDE.md)。
-> 截至 2026-11-23:470 测试绿,五检查员(ruff/mypy/import-linter/gitleaks/pytest)全过。
+> 截至 2026-11-23:491 测试绿,五检查员(ruff/mypy/import-linter/gitleaks/pytest)全过。
 
 ---
 
@@ -30,7 +30,7 @@
 | 文件 | 行 | 职责 | 你想改 X 时来这 |
 |---|---|---|---|
 | `records.py` | 270 | 所有跨模块数据形状(pydantic,运行时校验):`RawResponse/Citation/RunManifest/EvidenceRecord/BrandMention/CitationAttribution/ExtractionResult/Metrics/TierAssignment/ScoreBundle/HealthSummary/Interval` | 加字段/加指标的数据形状 |
-| `config.py` | 85 | `FrozenConfig/Brand/Question/VerifyThresholds` + `fingerprint()` | 加配置项、改阈值 |
+| `config.py` | 133 | `FrozenConfig/Brand/Question/VerifyThresholds` + `fingerprint()`;不认识的键名、重复的题目 id / 品牌名当场报错 | 加配置项、改阈值 |
 | `adapter.py` | 51 | `ProviderAdapter` Protocol(引擎扩展点) | 加引擎接口 |
 | `checker.py` | 46 | `UrlChecker` Protocol + `CHECK_*` 常量(核验扩展点) | 加核验方式接口 |
 
@@ -57,7 +57,7 @@
 | `storage/raw.py` | 87 | 原始层(🟥 只 append/read,无 update/delete) |
 | `storage/evidence.py` | 40 | 证据层(按 URL 去重缓存) |
 | `storage/analysis.py` | 48 | 分析层(派生产物,可重写) |
-| `configio.py` | 29 | YAML → `FrozenConfig` 加载 |
+| `configio.py` | 75 | YAML → `FrozenConfig` 加载;校验不过时把错误翻成"哪一项:为什么"(`explain_config_error`,向导共用) |
 
 ### ④ 编排壳(🟥 薄如纸)
 | 文件 | 行 | 职责 |
@@ -125,6 +125,7 @@ probe → ①raw               ├─→ score(纯)→ report(渲染)
 
 ### 3.5 加一个配置字段
 1. `contracts/config.py`:给 `FrozenConfig`/`Brand`/`Question` 加字段(带默认值则旧配置兼容)。
+   四个类型都是 `extra="forbid"`:YAML 里写了契约里没有的键会被拒绝,所以**先加字段、再写配置**。
 2. `configio.py`:若 YAML 结构变需对应解析。
 3. 注意:**改配置 = config_fingerprint 变 = 新基线**(机械暴露,见 ARCHITECTURE §5)。
 
