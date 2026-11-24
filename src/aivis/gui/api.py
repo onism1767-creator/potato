@@ -8,7 +8,10 @@
 import math
 from typing import Any, cast
 
+from pydantic import ValidationError
+
 from aivis.configcheck import has_errors, validate_config
+from aivis.configio import explain_config_error
 from aivis.contracts.adapter import SurfaceSpec
 from aivis.contracts.config import Brand, FrozenConfig, Intent, Question
 from aivis.providers import catalog, registry
@@ -67,23 +70,28 @@ def _config_from(payload: dict[str, Any], questions: tuple[Question, ...]) -> Fr
         name, domain = str(c.get("name", "")).strip(), str(c.get("domain", "")).strip()
         if name and domain:
             peers.append(Brand(name=name, domains=(domain,)))
-    return FrozenConfig(
-        version="wizard",
-        prompt_version="wizard-questions",
-        competitor_set_version="wizard-brands",
-        focal_domain=focal_domain,
-        peers=tuple(peers),
-        competitors_on=len(peers) > 1,
-        questions=questions,
-        tier=_str(payload, "tier") or "standard",
-        locale="en-US",
-        region="US",
-        temperature=0.0,
-        n_runs=3,
-        sequential=bool(payload.get("sequential")),  # 向导勾选:序贯采样(n_runs 作上限)
-        max_uses=3,
-        budget_cap_usd=_budget(payload),
-    )
+    budget = _budget(payload)
+    try:
+        return FrozenConfig(
+            version="wizard",
+            prompt_version="wizard-questions",
+            competitor_set_version="wizard-brands",
+            focal_domain=focal_domain,
+            peers=tuple(peers),
+            competitors_on=len(peers) > 1,
+            questions=questions,
+            tier=_str(payload, "tier") or "standard",
+            locale="en-US",
+            region="US",
+            temperature=0.0,
+            n_runs=3,
+            sequential=bool(payload.get("sequential")),  # 向导勾选:序贯采样(n_runs 作上限)
+            max_uses=3,
+            budget_cap_usd=budget,
+        )
+    except ValidationError as e:
+        # 契约拒绝(如竞品与自己重名、两道题同一个 id):回一句人话,不把库的英文原文甩给页面
+        raise ValueError(";".join(explain_config_error(e))) from e
 
 
 def draft(payload: dict[str, Any]) -> dict[str, Any]:

@@ -147,3 +147,33 @@ def test_negative_budget_rejected_as_valueerror() -> None:
     out = api.draft({**_BASE, "draft_tier": "free"})
     with pytest.raises(ValueError):
         api.estimate({**_BASE, "questions": out["questions"], "budget_cap_usd": -5})
+
+
+# ---------------------------------------------------------------- 配置契约收紧后的向导报错
+
+
+def test_competitor_named_like_the_focal_brand_is_refused_in_plain_words() -> None:
+    """把自己也填进竞品(只差大小写):以前同一处提及会被算两次;现在当场拒绝,且说人话。"""
+    payload = {
+        **_BASE,
+        "questions": _draft_questions(),
+        "competitors": [{"name": "acme corp", "domain": "elsewhere.com"}],
+    }
+    with pytest.raises(ValueError, match="品牌名重复") as exc:
+        api.validate(payload)
+    assert "validation error" not in str(exc.value) and "pydantic" not in str(exc.value)
+
+
+def test_same_competitor_listed_twice_is_refused() -> None:
+    rival = {"name": "Rival Co", "domain": "rival.com"}
+    payload = {**_BASE, "questions": _draft_questions(), "competitors": [rival, dict(rival)]}
+    with pytest.raises(ValueError, match="品牌名重复.*Rival Co"):
+        api.estimate({**payload, "provider": "mock"})
+
+
+def test_two_questions_with_one_id_are_refused() -> None:
+    questions = _draft_questions()
+    questions[1]["id"] = questions[0]["id"]
+    with pytest.raises(ValueError, match="题目 id 重复") as exc:
+        api.validate({**_BASE, "questions": questions})
+    assert "validation error" not in str(exc.value)

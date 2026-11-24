@@ -2,9 +2,15 @@
 
 FrozenConfig 必须显式传入,禁止全局可变状态或环境隐式读取。
 任何配置改动 = 版本号 bump(新基线);fingerprint() 机械暴露"改了没 bump"。
+
+写错的配置当场报错,不许静默带病运行(2026-11-23 收紧,用户拍板):
+  - 四个类型都是 extra="forbid":不认识的键名(多半是拼错,如 max_use)直接拒绝;
+  - 题目 id、品牌名各自不许重复(见 FrozenConfig._check_no_duplicates)。
+这只拒绝坏配置;合法配置的序列化与指纹不变,已有 run 的配置锁照常对得上。
 """
 
 import hashlib
+from collections import Counter
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -16,7 +22,7 @@ Track = Literal["benchmark"]  # 'operational' v1.1 才加入
 class Question(BaseModel):
     """一条冻结的探测问题(四意图桶配方,计划书第 7 章)。"""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: str
     intent: Intent
@@ -31,7 +37,7 @@ class Brand(BaseModel):
     ambiguous_aliases 是缩写/歧义名(命中只记录,不计分)。
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str
     aliases: tuple[str, ...] = ()
@@ -43,7 +49,7 @@ class Brand(BaseModel):
 class VerifyThresholds(BaseModel):
     """自动验证红线阈值(计划书 10.1;初始猜测值,拿真实数据后校准)。"""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     citation_validity_yellow: float = 0.85
     citation_validity_red: float = 0.70
@@ -56,7 +62,7 @@ class VerifyThresholds(BaseModel):
 class FrozenConfig(BaseModel):
     """一次基线的全部冻结输入。不可变;改动即新基线。"""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     version: str  # 整体配置版本(展示用)
     prompt_version: str  # 题库版本(进 RunManifest;题库改版单独 bump)
@@ -82,6 +88,30 @@ class FrozenConfig(BaseModel):
         """序贯模式下 min_runs 不能超过 n_runs(上限);固定模式不约束(min_runs 被忽略)。"""
         if self.sequential and self.min_runs > self.n_runs:
             raise ValueError(f"序贯采样 min_runs={self.min_runs} 不能大于上限 n_runs={self.n_runs}")
+        return self
+
+    @model_validator(mode="after")
+    def _check_no_duplicates(self) -> "FrozenConfig":
+        """题目 id、品牌名各自不许重复 —— 重复不会让程序报错,只会悄悄把结果算错。
+
+        - 题目 id:原始层按 (run_id, question_id, run_index) 去重,同 id 的第二道题会被当成
+          "已经问过",一次都不会被问到(用 mock 实测过),报告里也不会有任何提示。
+        - 品牌名:按匹配口径比较(不分大小写、去首尾空格)。重名的两个品牌会在同一处提及上
+          各记一次,份额随之算错。
+        """
+        problems: list[str] = []
+        id_counts = Counter(q.id for q in self.questions)
+        repeated_ids = [qid for qid, n in id_counts.items() if n > 1]
+        if repeated_ids:
+            problems.append(f"题目 id 重复:{'、'.join(repeated_ids)}(每道题的 id 必须不同)")
+        by_name: dict[str, list[str]] = {}
+        for brand in self.peers:
+            by_name.setdefault(brand.name.strip().casefold(), []).append(brand.name.strip())
+        clashes = [" / ".join(names) for names in by_name.values() if len(names) > 1]
+        if clashes:
+            problems.append(f"品牌名重复:{';'.join(clashes)}(不分大小写;同一个品牌只能出现一次)")
+        if problems:
+            raise ValueError(";".join(problems))
         return self
 
     def fingerprint(self) -> str:

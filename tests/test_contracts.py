@@ -1,5 +1,7 @@
 """契约层测试:不可变性、必填字段、配置指纹。"""
 
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -90,3 +92,47 @@ def test_error_code_includes_refusal() -> None:
     from aivis.contracts.records import ErrorCode
 
     assert "refusal" in get_args(ErrorCode)
+
+
+# ---------------------------------------------------------------- 配置契约收紧(2026-11-23,用户拍板)
+
+
+def test_duplicate_question_id_is_rejected(demo_cfg: FrozenConfig) -> None:
+    """两道题同一个 id:原始层按 (run_id, question_id, run_index) 去重,第二道题会被漏问。"""
+    data = demo_cfg.model_dump()
+    data["questions"][1]["id"] = "q1"
+    with pytest.raises(ValidationError, match="题目 id 重复.*q1"):
+        FrozenConfig.model_validate(data)
+
+
+@pytest.mark.parametrize("clash", ["Alpha Packs", "alpha packs", "  Alpha Packs "])
+def test_duplicate_brand_name_is_rejected(demo_cfg: FrozenConfig, clash: str) -> None:
+    """品牌重名(大小写、首尾空格不算区别——匹配口径本来就不分大小写):同一处提及会被两个品牌各算一次。"""
+    data = demo_cfg.model_dump()
+    data["peers"][1]["name"] = clash
+    with pytest.raises(ValidationError, match="品牌名重复"):
+        FrozenConfig.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    "path", [(), ("peers", 0), ("questions", 0), ("verify_thresholds",)], ids=str
+)
+def test_unknown_key_is_rejected_at_every_level(
+    demo_cfg: FrozenConfig, path: tuple[str | int, ...]
+) -> None:
+    """拼错的键名(max_use)以前被静默忽略、真正的 max_uses 悄悄变成默认值;现在每一层都当场报错。"""
+    data = demo_cfg.model_dump()
+    node: Any = data
+    for part in path:
+        node = node[part]
+    node["max_use"] = 3
+    with pytest.raises(ValidationError) as exc:
+        FrozenConfig.model_validate(data)
+    (error,) = exc.value.errors()
+    assert error["type"] == "extra_forbidden" and error["loc"] == (*path, "max_use")
+
+
+def test_tightening_does_not_reject_or_alter_a_valid_config(demo_cfg: FrozenConfig) -> None:
+    """收紧只拒绝坏配置:合法配置原样往返、指纹不变(否则已有 run 的配置锁全部对不上)。"""
+    again = FrozenConfig.model_validate(demo_cfg.model_dump())
+    assert again == demo_cfg and again.fingerprint() == demo_cfg.fingerprint()

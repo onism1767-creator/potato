@@ -116,3 +116,21 @@ def test_init_refuses_existing_dir_exits_2(tmp_path: Path) -> None:
         ]
     )
     assert rc == 2
+
+
+def test_run_refuses_a_misconfigured_dir_before_any_call(tmp_path: Path, capsys) -> None:  # type: ignore[no-untyped-def]
+    """两道题同一个 id:开跑前就拦下(退出码 2),点名是哪个 id,数据目录都还没建。"""
+    import shutil
+
+    bad = tmp_path / "config"
+    shutil.copytree("configs/demo", bad)
+    questions = bad / "questions.yml"
+    text = questions.read_text(encoding="utf-8")
+    questions.write_text(text.replace('id: "d02"', 'id: "d01"', 1), encoding="utf-8")
+    data = tmp_path / "data"
+    rc = cli.main(["run", "--config-dir", str(bad), "--data-dir", str(data), "--yes"])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "[配置错误]" in err and "题目 id 重复:d01" in err
+    assert "validation error" not in err
+    assert not data.exists()
