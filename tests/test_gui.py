@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import socket
 import threading
 import time
 import urllib.error
@@ -174,3 +175,24 @@ def test_draft_ai_without_key_400(server: GuiServer) -> None:
     code, text = _req(server, "/api/draft", method="POST", token=server.token, body=body)
     assert code == 400
     assert "api_key" in json.loads(text)["error"]
+
+
+def test_refused_post_always_gets_its_answer(server: GuiServer) -> None:
+    """回归:拒绝一个 POST 之前要先把它的请求体收完。
+
+    以前不收就回、随即关连接 → 系统向对方发"连接重置",对方每 100 次有 1~2 次收不到 403、
+    只看到连接断开(本文件里无 token 的断言因此偶发失败)。400 次全是干净的 403 才算过;
+    按修之前实测的发生率,这条在旧代码上几乎必挂。
+    """
+    codes = {_req(server, "/api/ping", method="POST", body={"k": "v"})[0] for _ in range(400)}
+    assert codes == {403}
+
+
+def test_post_declaring_a_huge_body_is_refused_without_waiting_for_it(server: GuiServer) -> None:
+    """声明的请求体超过上限:不去读(否则会一直等对方把它发完),直接回 400。"""
+    port = server.server_address[1]
+    head = f"POST /api/ping HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 2000000\r\n\r\n"
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as sock:
+        sock.sendall(head.encode("ascii"))
+        status_line = sock.recv(4096).split(b"\r\n", 1)[0]
+    assert b" 400 " in status_line

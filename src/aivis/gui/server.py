@@ -30,6 +30,8 @@ _DEFAULT_PORT = 8765
 _STATIC_DIR = Path(__file__).parent / "static"
 
 _INTERNAL_ERROR = "向导内部出错了(细节没有回传给浏览器)。请重试一次;仍不行请关掉向导窗口重新启动。"
+# 向导的请求体都是几 KB 的 JSON;声明得比这还大的一律不读、直接拒绝
+_MAX_BODY_BYTES = 1_000_000
 
 # 不花钱端点(2.3):dict→dict 逻辑在 gui.api;run(花钱/subprocess)留下一轮
 _POST_ENDPOINTS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
@@ -118,6 +120,12 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(404, "text/plain; charset=utf-8", b"not found")
 
     def do_POST(self) -> None:
+        # 先把请求体收完,再做任何回应(包括拒绝)。不读就回、随即关连接的话,系统会向对方发
+        # "连接重置",对方有时收不到这句回应、只看到连接断开(本机实测每 100 次有 1~2 次)。
+        raw = self._read_body()
+        if raw is None:
+            self._json(400, {"error": "请求体过大或长度不合法"})
+            return
         if not self._host_ok():
             self._send(403, "text/plain; charset=utf-8", b"forbidden host")
             return
@@ -131,7 +139,7 @@ class _Handler(BaseHTTPRequestHandler):
             try:
                 self._json(
                     200,
-                    runner_mod.start_run(self._gui.runner, self._read_json(), self._gui.work_root),
+                    runner_mod.start_run(self._gui.runner, _parse_json(raw), self._gui.work_root),
                 )
             except ValueError as e:
                 self._json(400, {"error": str(e)})
@@ -143,7 +151,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "not found"})
             return
         try:
-            self._json(200, endpoint(self._read_json()))
+            self._json(200, endpoint(_parse_json(raw)))
         except ValueError as e:  # 含 pydantic ValidationError(其为 ValueError 子类)
             self._json(400, {"error": str(e)})
         except RuntimeError as e:  # 上游失败(如 AI 档起草 DraftError):非客户端错,返 502
@@ -153,15 +161,15 @@ class _Handler(BaseHTTPRequestHandler):
             # 以前这里不接 → 连接直接断开、前端永远停在"处理中";也不回传异常文本(可能带敏感信息)
             self._json(500, {"error": _INTERNAL_ERROR})
 
-    def _read_json(self) -> dict[str, Any]:
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length) if length > 0 else b""
-        if not raw:
-            return {}
-        data = json.loads(raw)  # JSONDecodeError 是 ValueError 子类 → do_POST 映射 400
-        if not isinstance(data, dict):
-            raise ValueError("请求体必须是 JSON 对象")
-        return cast(dict[str, Any], data)
+    def _read_body(self) -> bytes | None:
+        """读完请求体(只读不解析);长度不合法或超过 _MAX_BODY_BYTES 返回 None。"""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return None
+        if not 0 <= length <= _MAX_BODY_BYTES:
+            return None
+        return self.rfile.read(length) if length else b""
 
     def _send(self, code: int, content_type: str, body: bytes) -> None:
         self.send_response(code)
@@ -177,6 +185,16 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: Any) -> None:  # 静默:不往 stderr 刷访问日志
         pass
+
+
+def _parse_json(raw: bytes) -> dict[str, Any]:
+    """请求体 → JSON 对象(空体当作 {});不是对象或不是合法 JSON → ValueError(do_POST 映射 400)。"""
+    if not raw:
+        return {}
+    data = json.loads(raw)  # JSONDecodeError 是 ValueError 子类
+    if not isinstance(data, dict):
+        raise ValueError("请求体必须是 JSON 对象")
+    return cast(dict[str, Any], data)
 
 
 def _render_index(token: str) -> str:
