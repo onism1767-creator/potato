@@ -57,6 +57,15 @@ def render_markdown(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
     out("")
     out(f"> **{bundle.engine_note}**")
     out("")
+    if any(f.startswith("partial-run") for f in bundle.health.flags):
+        asked = bundle.n_responses_ok + bundle.n_responses_error
+        out(
+            f"> ⚠️ **阶段性报告(这轮没跑完)**:花到预算上限后停下,只问了 {asked} 次"
+            f"(计划最多 {bundle.n_questions * bundle.n_runs} 次)。下面所有数字只覆盖已问到的题,"
+            "排在后面的题可能一次都没问,**不能当作完整基线**。"
+            "调高预算上限后用同一个 run_id 续跑即可补全。"
+        )
+        out("")
 
     # ---- 健康灯(总体 = 最差指标) ----
     h = bundle.health
@@ -216,7 +225,13 @@ def render_markdown(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
     )
     if any(e.check_method == "offline-assumed" for e in bundle.evidence):
         out("- **本次运行为离线核验(offline-assumed):可达性是假设值,非真实检查;**")
-    out(f"- 固定 {bundle.n_runs} 轮采样;序贯采样(run_until_stable)为后续版本;")
+    if cfg.sequential:
+        out(
+            f"- 序贯采样:每题最少 {cfg.min_runs} 轮、最多 {bundle.n_runs} 轮,"
+            "各轮提及的品牌一致即停(各题轮数可能不同);"
+        )
+    else:
+        out(f"- 固定 {bundle.n_runs} 轮采样;")
     out('- 本报告只呈现观测与线索,不构成"照做就能提升 AI 提及"的保证。')
     out("")
     return "\n".join(lines)

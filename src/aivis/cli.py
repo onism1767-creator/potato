@@ -16,8 +16,16 @@ from aivis.configio import load_frozen_config
 from aivis.contracts.adapter import FatalProviderError, ProviderAdapter, SurfaceSpec
 from aivis.contracts.checker import UrlChecker
 from aivis.contracts.config import FrozenConfig
+from aivis.contracts.records import RunManifest
 from aivis.pipeline.extract import extract
-from aivis.pipeline.probe import CostGateError, RunLockError, run_probe, utc_now
+from aivis.pipeline.probe import (
+    BudgetStop,
+    CostGateError,
+    RunLockError,
+    run_probe,
+    snapshot_manifest,
+    utc_now,
+)
 from aivis.pipeline.report import render_csv, render_html, render_markdown
 from aivis.pipeline.report_compare import render_comparison_html, render_comparison_markdown
 from aivis.pipeline.score import score
@@ -34,6 +42,7 @@ from aivis.storage.evidence import EvidenceStore
 from aivis.storage.raw import RawStore
 
 DEFAULT_CONCURRENCY = 4  # probe 同时在途的调用数上限(--concurrency;1 = 逐个串行)
+EXIT_BUDGET_STOP = 6  # run 跑到了头,但至少一个表面因预算到顶停下(只有阶段性报告)
 
 
 def _positive_int(text: str) -> int:
@@ -174,6 +183,7 @@ def _cmd_probe(
     *,
     adapter: ProviderAdapter | None = None,
     preconfirmed: bool = False,
+    run_id: str | None = None,
 ) -> str:
     def confirm(cost: float, n_calls: int) -> bool:
         if args.yes or preconfirmed:
@@ -189,13 +199,62 @@ def _cmd_probe(
         adapter if adapter is not None else _make_adapter(args),
         cfg,
         raw,
-        run_id=args.run_id,
+        run_id=run_id if run_id is not None else args.run_id,
         confirm_cost=confirm,
         progress=progress,
         concurrency=args.concurrency,
     )
     print(f"probe 完成: run_id={manifest.run_id}  search_count={manifest.search_count}")
     return manifest.run_id
+
+
+def _ask_new_cap(args: argparse.Namespace, cfg: FrozenConfig, stop: BudgetStop) -> float | None:
+    """预算到顶后让用户自己选:输入更高的上限 = 接着跑;回车 = 停在这里。非交互(--yes/管道)不问。"""
+    if args.yes or not sys.stdin.isatty():
+        return None
+    print(
+        f"已花 ${stop.spent_usd:.2f}(上限 ${cfg.budget_cap_usd:.2f}),"
+        f"完成 {stop.done_calls}/{stop.total_calls} 次调用。"
+    )
+    answer = input(
+        "要接着跑,请输入新的预算上限(美元);直接回车 = 停在这里,就已有数据出阶段性报告: "
+    ).strip()
+    if not answer:
+        return None
+    try:
+        new_cap = float(answer)
+    except ValueError:
+        new_cap = float("nan")
+    if not new_cap > cfg.budget_cap_usd:  # 也挡住 nan
+        print(f"  新上限必须是大于 ${cfg.budget_cap_usd:.2f} 的数字;按停在这里处理。")
+        return None
+    return new_cap
+
+
+def _probe_with_budget_choice(
+    args: argparse.Namespace,
+    cfg: FrozenConfig,
+    raw: RawStore,
+    adapter: ProviderAdapter,
+    *,
+    preconfirmed: bool,
+) -> tuple[str, FrozenConfig, BudgetStop | None]:
+    """探测一个表面。预算到顶时由用户决定:调高上限接着跑,或停在这里(返回这次的 BudgetStop)。"""
+    run_id: str | None = None
+    while True:
+        try:
+            run_id = _cmd_probe(
+                args, cfg, raw, adapter=adapter, preconfirmed=preconfirmed, run_id=run_id
+            )
+            return run_id, cfg, None
+        except BudgetStop as stop:
+            print(f"[预算到顶] {stop}", file=sys.stderr)
+            new_cap = _ask_new_cap(args, cfg, stop)
+            if new_cap is None:
+                return stop.run_id, cfg, stop
+            # 只改预算上限:测量基线不变,同一个 run_id 接着问(配置锁放行)
+            cfg = FrozenConfig.model_validate(cfg.model_dump() | {"budget_cap_usd": new_cap})
+            run_id, preconfirmed = stop.run_id, True  # 用户刚亲手给了新上限 = 已确认继续
 
 
 def _cmd_extract(run_id: str, cfg: FrozenConfig, raw: RawStore, analysis: AnalysisStore) -> None:
@@ -233,14 +292,25 @@ def _cmd_score(
     raw: RawStore,
     analysis: AnalysisStore,
     evidence_store: EvidenceStore,
+    *,
+    partial_manifest: RunManifest | None = None,
 ) -> None:
-    manifest = next(m for m in raw.read_manifests() if m.run_id == run_id)
+    """partial_manifest:这轮没跑完时现算的清单(未入原始层)—— 出的是带标记的阶段性结果。"""
+    manifest = partial_manifest or next(
+        (m for m in raw.read_manifests() if m.run_id == run_id), None
+    )
+    if manifest is None:
+        raise SystemExit(
+            f"run_id={run_id} 还没有运行清单(这轮探测没跑完,或 run_id 写错了)。"
+            f"用相同配置执行 aivis probe --run-id {run_id} 跑完后再打分。"
+        )
     bundle = score(
         analysis.read_extraction(run_id),
         evidence_store.load(),
         manifest,
         cfg,
         generated_at=utc_now(),
+        partial=partial_manifest is not None,
     )
     path = analysis.write_bundle(bundle)
     print(f"score 完成: {path}  健康灯={bundle.health.light}")
@@ -345,8 +415,12 @@ def _cmd_run(
     if adapters is None:
         return 2
     multi = args.surfaces is not None
-    if multi and args.run_id:
-        print("[参数错误] 多表面运行不支持 --run-id 续跑(每个表面独立 run_id)", file=sys.stderr)
+    if args.run_id and len(adapters) > 1:
+        print(
+            "[参数错误] 一次跑多个表面时不支持 --run-id 续跑(每个表面独立 run_id);"
+            "续跑请一次只指定一个表面",
+            file=sys.stderr,
+        )
         return 2
     missing = registry.missing_env_keys(a.provider_name for a in adapters)
     if missing:
@@ -368,20 +442,50 @@ def _cmd_run(
             flag = "  [!] 超上限,该表面会被闸门阻断" if e > cfg.budget_cap_usd else ""
             print(f"  - {a.provider_name}:{a.model_name}  ≈ ${e:.2f}{flag}")
         print(f"  合计(保守上界) ≈ ${total:.2f}")
+        if any(e > cfg.budget_cap_usd for _, e in ests):
+            # 不许"前面的表面花完钱,轮到超上限的那个才整批中止":开跑前就整批拦下,一分钱不花
+            raise CostGateError(
+                "上面标 [!] 的表面预估超过预算上限,本次一个表面都没有跑(没有花钱)。"
+                "请调高 budget_cap_usd,或把它们从 --surfaces 里去掉后重试。"
+            )
         if total > 0 and not args.yes:
             answer = input(f"以上合计预估 ${total:.2f},继续?[y/N] ")
             if answer.strip().lower() != "y":
                 raise CostGateError("用户未确认多表面运行的合计预估,已取消。")
     bundles = []
+    budget_stops = 0
     for i, adapter in enumerate(adapters, 1):
+        label = f"{adapter.provider_name}:{adapter.model_name}"
         if multi:
-            label = f"{adapter.provider_name}:{adapter.model_name}"
             print(f"PROGRESS surface {i}/{len(adapters)} {label}", flush=True)
-        run_id = _cmd_probe(args, cfg, raw, adapter=adapter, preconfirmed=multi)
-        _cmd_extract(run_id, cfg, raw, analysis)
-        _cmd_verify(args, run_id, cfg, analysis, evidence_store)
-        _cmd_score(run_id, cfg, raw, analysis, evidence_store)
-        _cmd_report(run_id, cfg, analysis)
+        # 每个表面各自受预算上限约束:一个表面到顶停下,不连累别的表面(它们照常跑)
+        run_id, used_cfg, stop = _probe_with_budget_choice(
+            args, cfg, raw, adapter, preconfirmed=multi
+        )
+        _cmd_extract(run_id, used_cfg, raw, analysis)
+        _cmd_verify(args, run_id, used_cfg, analysis, evidence_store)
+        _cmd_score(
+            run_id,
+            used_cfg,
+            raw,
+            analysis,
+            evidence_store,
+            partial_manifest=snapshot_manifest(adapter, used_cfg, raw, run_id) if stop else None,
+        )
+        _cmd_report(run_id, used_cfg, analysis)
+        if stop is not None:
+            budget_stops += 1
+            # 机器可解析(GUI 据此提示"看阶段性报告 / 调高上限接着跑")
+            print(
+                f"BUDGET_STOP {label} {run_id} {stop.done_calls}/{stop.total_calls} "
+                f"{stop.spent_usd:.4f}",
+                flush=True,
+            )
+            print(
+                f"  上面是阶段性报告(只覆盖已问到的 {stop.done_calls}/{stop.total_calls} 次)。"
+                f"要跑完:调高 budget_cap_usd 后执行 aivis run --provider {adapter.provider_name} "
+                f"--model {adapter.model_name} --run-id {run_id}"
+            )
         bundles.append(analysis.read_bundle(run_id))
     if multi:
         stamp = utc_now().replace("-", "").replace(":", "")
@@ -397,7 +501,7 @@ def _cmd_run(
         print(f"  合计 ${spent:.4f}")
         print(f"COMPARISON {page}", flush=True)
         print(f"对比报告: {md}\n          {page}")
-    return 0
+    return EXIT_BUDGET_STOP if budget_stops else 0
 
 
 def _cmd_validate(args: argparse.Namespace, cfg: FrozenConfig) -> int:

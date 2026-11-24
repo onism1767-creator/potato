@@ -30,7 +30,10 @@ def normalize_url(url: str) -> str:
     """确定性 URL 规范化:小写 scheme/host、去默认端口、去 fragment、去跟踪参数、
     剩余 query 排序、去尾斜杠。解析失败时原样返回(strip 后)。"""
     raw = url.strip()
-    parsed = urlparse(raw)
+    try:
+        parsed = urlparse(raw)
+    except ValueError:  # 畸形主机(如 http://[foo]/x):引擎给的 URL 不可信,不能让一条坏链接崩掉整轮
+        return raw
     if not parsed.scheme or not parsed.netloc:
         return raw
     host = parsed.netloc.lower()
@@ -49,19 +52,36 @@ def normalize_url(url: str) -> str:
 
 def canonical_domain(url: str) -> str:
     """从(规范化或原始)URL 提取规范域名:小写、去端口、去 www. 前缀。"""
-    host = urlparse(url.strip()).netloc.lower()
+    try:
+        host = urlparse(url.strip()).netloc.lower()
+    except ValueError:  # 畸形 URL:无法归属(交 verify 如实核为不可达)
+        return ""
     if not host:
         return ""
     host = host.rsplit(":", 1)[0] if ":" in host else host
     return host.removeprefix("www.")
 
 
+def _bare_domain(value: str) -> str:
+    """把配置里填的域名清洗成裸域名:'https://www.Acme.com/shop' → 'acme.com'。
+
+    用户(尤其在向导里)常把整条网址贴进域名框;不清洗的话自家官网永远匹配不上,
+    owned 引用会被错算成 earned。清洗规则与 canonical_domain 对被引 URL 的处理一致。
+    """
+    text = value.strip().lower()
+    if not text:
+        return ""
+    return canonical_domain(text if "://" in text else "//" + text).rstrip(".")
+
+
 def owner_of_domain(domain: str, brands: Iterable[Brand]) -> Brand | None:
     """域名属于哪个品牌的自有域(含子域后缀匹配);不属于任何品牌返回 None。"""
+    if not domain:
+        return None
     for brand in brands:
-        for d in brand.domains:
-            d = d.lower().removeprefix("www.")
-            if domain == d or domain.endswith("." + d):
+        for configured in brand.domains:
+            d = _bare_domain(configured)
+            if d and (domain == d or domain.endswith("." + d)):
                 return brand
     return None
 

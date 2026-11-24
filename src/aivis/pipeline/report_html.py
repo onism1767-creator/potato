@@ -67,6 +67,7 @@ _HEALTH_FLAG_REASON = {
     "failure-red": "many probe calls failed",
     "failure-yellow": "some probe calls failed",
     "all-intervals-overlap:ranking-indicative-only": "ranking not statistically distinguishable",
+    "partial-run:budget-cap": "partial run — stopped at the budget cap",
 }
 
 
@@ -113,14 +114,46 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
             '<div class="note" style="margin-bottom:20px;color:#8A5A00;">'
             f"{e(_SEARCH_ONLY_NOTE_EN)}</div>"
         )
+    # 这轮没跑完(预算到顶)就出的阶段性报告:必须在最显眼处说清,不能被当成完整基线
+    if any(f.startswith("partial-run") for f in h.flags):
+        asked = bundle.n_responses_ok + bundle.n_responses_error
+        p.append(
+            '<div class="note" style="margin-bottom:20px;color:#8A5A00;">'
+            f"<b>Partial run.</b> This run stopped at the budget cap after {asked} of up to "
+            f"{bundle.n_questions * bundle.n_runs} calls. Every number below covers only the "
+            "questions asked so far (later questions may not have been asked at all), so it is "
+            "not a complete baseline. Raise the cap and resume the same run to finish it.</div>"
+        )
+    # 离线核验:可达性与 verified 档是假设值,不能让 100% 看起来像真的查过
+    offline = any(ev.check_method == "offline-assumed" for ev in bundle.evidence)
+    if offline:
+        p.append(
+            '<div class="note" style="margin-bottom:20px;color:#8A5A00;">'
+            "Cited links were <b>not fetched</b> in this run (offline mode): reachability, "
+            "citation validity and the &ldquo;verified&rdquo; tier are <b>assumed</b>, not "
+            "checked. Run with <code>--check fetch</code> to really fetch each cited page.</div>"
+        )
     # 英雄 + 健康三卡
     hero = ranked[0]
+    # 全部区间重叠 = 排名无法区分(§7.5):不许再写"第一名 / 领先几个点"这种假精确的话
+    overlap = any("all-intervals-overlap" in f for f in h.flags)
     gap = ""
     if len(ranked) > 1:
-        d = round((hero.mention_coverage.point - ranked[1].mention_coverage.point) * 100)
-        gap = f'<span class="lbl">+{d}pt ahead of #2</span>'
+        if overlap:
+            gap = '<span class="lbl">not distinguishable from the others</span>'
+        else:
+            d = round((hero.mention_coverage.point - ranked[1].mention_coverage.point) * 100)
+            gap = f'<span class="lbl">+{d}pt ahead of #2</span>'
     light_en = {"green": "green", "yellow": "yellow", "red": "red"}[h.light]
-    lbl_top = "Brand · mention coverage" if len(ranked) == 1 else "Top brand · mention coverage"
+    if len(ranked) == 1:
+        lbl_top = "Brand · mention coverage"
+    elif search_only:
+        lbl_top = "Mention coverage · not applicable"
+    elif overlap:
+        lbl_top = "Highest point estimate · mention coverage"
+    else:
+        lbl_top = "Top brand · mention coverage"
+    validity_lbl = "Citation validity · assumed" if offline else "Citation validity"
     hreason = _health_reason(h)
     hreason_html = (
         f'<div style="font-size:11px;color:#7E8B76;margin-top:2px;'
@@ -136,7 +169,7 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         f'<span class="big">{"n/a" if search_only else _pi(hero.mention_coverage.point)}'
         f"</span>{'' if search_only else gap}</div>"
         f"{_help(_H_COVERAGE)}</div>"
-        f'<div class="mc"><div class="lbl">Citation validity</div>'
+        f'<div class="mc"><div class="lbl">{validity_lbl}</div>'
         f'<div class="big" style="margin-top:4px;">{_pi(h.citation_validity_rate)}</div>'
         f"{_help(_H_VALIDITY)}</div>"
         f'<div class="mc"><div class="lbl">Ambiguous / parked</div>'
@@ -148,16 +181,29 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         f"Health · {light_en}</div>{hreason_html}{_help(_H_FAILURE)}</div></div>"
     )
     # 排名条 + SOV(多品牌)/ 单品牌专用排版
-    p.append(_brand_overview_html(ranked, hero, color_of))
+    if search_only:  # 没有回答正文就谈不上"提及":不画提及排名(否则全是 0% 的假排名)
+        p.append(
+            '<div class="panel"><h2>Mention coverage</h2><div class="lbl">Not applicable: a '
+            "search-only surface returns no answer text, so no brand can be &ldquo;mentioned"
+            "&rdquo;. See the citation metrics below.</div></div>"
+        )
+    else:
+        p.append(_brand_overview_html(ranked, hero, color_of))
     # 其余指标表
+    na = '<td class="bd">n/a</td>'
     rows = "".join(
         f'<tr><td class="bd">{e(m.brand)}</td>'
         f'<td class="bd">{_pi(m.earned_citation_rate.point)} '
         f'<span style="color:#9AA38F;">{_iv_int(m.earned_citation_rate)}</span></td>'
-        f'<td class="bd">{_fmt_optional_pi(m.mention_sov)}</td>'
-        f'<td class="bd">{_fmt_optional_pi(m.citation_sov)}</td>'
-        f'<td class="bd">{_pi(m.stability.point)} '
-        f'<span style="color:#9AA38F;">{_iv_int(m.stability)}</span></td></tr>'
+        + (na if search_only else f'<td class="bd">{_fmt_optional_pi(m.mention_sov)}</td>')
+        + f'<td class="bd">{_fmt_optional_pi(m.citation_sov)}</td>'
+        + (
+            na
+            if search_only
+            else f'<td class="bd">{_pi(m.stability.point)} '
+            f'<span style="color:#9AA38F;">{_iv_int(m.stability)}</span></td>'
+        )
+        + "</tr>"
         for m in ranked
     )
     p.append(
@@ -175,6 +221,15 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         {ev.canonical_domain for ev in bundle.evidence if ev.check_method == CHECK_PAGE_FETCH}
     )
     cited = len({ev.canonical_domain for ev in bundle.evidence})
+    if cfg.sequential:  # 序贯采样:每题问到稳定即停,轮数不是固定的
+        observations = (
+            f"{bundle.n_questions} questions · up to {bundle.n_runs} rounds each · "
+            f"{bundle.n_responses_ok} ok"
+        )
+        rounds = f"adaptive sampling (up to {bundle.n_runs} rounds per question)"
+    else:
+        observations = f"{bundle.n_questions} × {bundle.n_runs} = {bundle.n_responses_ok} ok"
+        rounds = f"fixed {bundle.n_runs} rounds"
     # API 去向按 provider 渲染,不硬编码 Anthropic(mock 不真联网;未来新引擎用 surface_id)
     if bundle.provider == "mock":
         api_row = (
@@ -192,15 +247,13 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         '<div class="g2"><div class="panel"><h2>Network destinations</h2><table>'
         f"{api_row}"
         f'<tr><td style="color:#7E8B76;">Cited domains (fetched {fetched})</td>'
-        f'<td style="text-align:right;font-weight:500;">{cited}</td></tr>'
-        '<tr><td style="color:#7E8B76;">Anywhere else</td>'
-        '<td style="text-align:right;font-weight:500;color:#4E9A06;">0</td></tr></table></div>'
+        f'<td style="text-align:right;font-weight:500;">{cited}</td></tr></table></div>'
         '<div class="panel"><h2>Measurement surface</h2><table>'
         f'<tr><td style="color:#7E8B76;">Question / competitor set</td>'
         f'<td style="text-align:right;">'
         f"{e(bundle.prompt_version)} / {e(bundle.competitor_set_version or '—')}</td></tr>"
         f'<tr><td style="color:#7E8B76;">Observations</td><td style="text-align:right;">'
-        f"{bundle.n_questions} × {bundle.n_runs} = {bundle.n_responses_ok} ok</td></tr>"
+        f"{observations}</td></tr>"
         f'<tr><td style="color:#7E8B76;">Evidence basis</td><td style="text-align:right;">'
         f"{e(bundle.tier_basis)}</td></tr>"
         f'<tr><td style="color:#7E8B76;">Config fingerprint</td><td style="text-align:right;">'
@@ -221,7 +274,7 @@ def render_html(bundle: ScoreBundle, cfg: FrozenConfig) -> str:
         '<div style="font-size:11.5px;color:#9AA38F;line-height:1.6;padding:0 2px;">'
         "Deterministic counting · conservative counting (abbreviations / ambiguous names "
         "recorded, not scored) · Wilson intervals · no AI judgment · "
-        f"fixed {bundle.n_runs} rounds · observations and leads only</div>"
+        f"{rounds} · observations and leads only</div>"
     )
     p.append("</div>")
 

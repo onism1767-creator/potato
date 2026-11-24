@@ -9,7 +9,7 @@ import pytest
 
 from aivis.contracts.config import Brand, FrozenConfig, Question
 from aivis.contracts.records import RawResponse
-from aivis.pipeline.probe import CostGateError, RunLockError, run_probe
+from aivis.pipeline.probe import BudgetStop, CostGateError, RunLockError, run_probe
 from aivis.providers.mock import MockAdapter
 from aivis.storage.raw import RawStore
 
@@ -96,7 +96,7 @@ def test_runtime_budget_cap_aborts_and_preserves_partial(
     """B:估算放行(谎称 0),但运行中真实累计花费达 budget_cap 即阻断,已完成的保留。"""
     # demo_cfg: budget_cap=1.0,3 题 × 2 轮 = 6 次;每次真花 0.5 → 第 2 次后达 1.0 阻断
     store = RawStore(tmp_path)
-    with pytest.raises(CostGateError, match="阻断"):
+    with pytest.raises(BudgetStop, match="预算上限"):
         run_probe(_RealCostAdapter(), demo_cfg, store, run_id="r", now=lambda: FIXED_NOW)
     assert len(RawStore(tmp_path).read_responses("r")) == 2  # 已完成的原始数据保留(可续跑)
 
@@ -474,7 +474,7 @@ def test_concurrent_budget_cap_keeps_in_flight_calls_then_blocks(
     # 它们若同时回来存 3 次,若有一次先回来(花费才 0.5,未到上限)那题会接着发下一次 → 存 4 次。
     # 两种时序都合法,界是"串行的 2 次 + 最多 concurrency-1 次已在途的"。
     adapter = _SlowPaidAdapter()
-    with pytest.raises(CostGateError, match="阻断"):
+    with pytest.raises(BudgetStop, match="预算上限"):
         run_probe(
             adapter, demo_cfg, RawStore(tmp_path), run_id="r", now=lambda: FIXED_NOW, concurrency=3
         )

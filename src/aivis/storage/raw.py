@@ -8,6 +8,7 @@
 """
 
 import json
+import warnings
 from pathlib import Path
 
 from aivis.contracts.records import RawResponse, RunLock, RunManifest
@@ -91,8 +92,15 @@ class RawStore:
 
     @staticmethod
     def _append_line(path: Path, line: str) -> None:
+        # 上次写到一半被杀(关窗口/断电/磁盘满)会留下没有换行的半截末行。先补一个换行把它隔开,
+        # 否则这条新记录会被粘在半截行后面一起报废。只追加、不截断、不改写已有内容。
+        torn_tail = False
+        if path.exists() and path.stat().st_size > 0:
+            with path.open("rb") as existing:
+                existing.seek(-1, 2)
+                torn_tail = existing.read(1) != b"\n"
         with path.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+            f.write(("\n" if torn_tail else "") + line + "\n")
 
     @staticmethod
     def _read_lines(path: Path) -> list[dict[str, object]]:
@@ -100,10 +108,21 @@ class RawStore:
             return []
         out: list[dict[str, object]] = []
         with path.open("r", encoding="utf-8") as f:
-            for line in f:
+            for number, line in enumerate(f, 1):
                 line = line.strip()
-                if line:
+                if not line:
+                    continue
+                try:
                     obj = json.loads(line)
-                    assert isinstance(obj, dict)
-                    out.append(obj)
+                except json.JSONDecodeError:
+                    # 半截行(写入中途被中断的残留):那次调用从未完整落盘,续跑会重问它。
+                    # 跳过并显式告警 —— 不能让一行残渣把整个数据目录(含别的 run)全部锁死。
+                    warnings.warn(
+                        f"{path.name} 第 {number} 行不是完整的 JSON(多半是写入中途被中断),已跳过",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    continue
+                assert isinstance(obj, dict)
+                out.append(obj)
         return out

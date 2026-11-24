@@ -102,7 +102,29 @@ def test_run_checks_env_keys_before_any_call(
     assert not (tmp_path / "raw").exists() or not list((tmp_path / "raw").glob("*.jsonl"))
 
 
-def test_run_surfaces_rejects_run_id(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_several_surfaces_rejects_run_id(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """一次跑多个表面时每个表面各有 run_id,一个 --run-id 对不上号 → 拒绝。"""
+    rc = cli.main(
+        [
+            "run",
+            "--config-dir",
+            "configs/demo",
+            "--data-dir",
+            str(tmp_path),
+            "--surfaces",
+            "mock:mock-model-economy,mock:mock-model-high",
+            "--run-id",
+            "x",
+        ]
+    )
+    assert rc == 2 and "--run-id" in capsys.readouterr().err
+    assert not list((tmp_path / "raw").glob("*.jsonl"))  # 拒绝发生在任何调用之前
+
+
+def test_run_one_surface_accepts_run_id(tmp_path: Path) -> None:
+    """--surfaces 只给一个表面时可以带 --run-id(向导"调高预算接着跑"走的就是这条)。"""
     rc = cli.main(
         [
             "run",
@@ -116,7 +138,8 @@ def test_run_surfaces_rejects_run_id(tmp_path: Path, capsys: pytest.CaptureFixtu
             "x",
         ]
     )
-    assert rc == 2 and "--run-id" in capsys.readouterr().err
+    assert rc == 0
+    assert [m.run_id for m in RawStore(tmp_path / "raw").read_manifests()] == ["x"]
 
 
 def test_estimate_surfaces_lists_each_and_total(capsys: pytest.CaptureFixture[str]) -> None:

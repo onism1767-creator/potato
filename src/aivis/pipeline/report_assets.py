@@ -161,7 +161,7 @@ def _donut_svg(segs: list[tuple[str, float, str]]) -> str:
         off += seg
     lead = round(segs[0][1] / total * 100)
     parts.append(
-        '<text x="70" y="66" text-anchor="middle" font-size="11" fill="#7E8B76">LEADER</text>'
+        '<text x="70" y="66" text-anchor="middle" font-size="11" fill="#7E8B76">LARGEST</text>'
         '<text x="70" y="84" text-anchor="middle" font-size="17" font-weight="500" '
         f'fill="#3C6E0F">{lead}%</text></svg>'
     )

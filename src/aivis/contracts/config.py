@@ -88,6 +88,15 @@ class FrozenConfig(BaseModel):
         """冻结配置内容的 sha256 指纹(写入 RunManifest,纯计算)。"""
         return hashlib.sha256(self.model_dump_json().encode("utf-8")).hexdigest()
 
+    def baseline_fingerprint(self) -> str:
+        """测量基线指纹:与 fingerprint() 相同,但不含 budget_cap_usd(纯计算)。
+
+        预算上限只决定"花到多少停",不改变问什么、怎么问 —— 所以调高预算后续跑同一个 run_id
+        不算换基线(配置锁用它比对);其余任何字段改动仍会改变本指纹。
+        """
+        payload = self.model_dump_json(exclude={"budget_cap_usd"})
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
     def stratum_label(self) -> str:
         """本配置所属采样分层标签;同 stratum 内才聚合比较(计划书 6.5)。"""
         parts = {"region": self.region, "locale": self.locale, "tier": self.tier}

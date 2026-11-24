@@ -216,8 +216,13 @@ def score(
     cfg: FrozenConfig,
     *,
     generated_at: str,
+    partial: bool = False,
 ) -> ScoreBundle:
-    """由 ①(经 extract)+ ② 完全派生指标(纯;同输入恒同输出)。"""
+    """由 ①(经 extract)+ ② 完全派生指标(纯;同输入恒同输出)。
+
+    partial=True:这轮没跑完(预算到顶停下)就出的阶段性结果 —— 指标只覆盖已问到的那部分
+    (按题目顺序,靠后的题可能一次都没问),健康灯至少为黄并带 partial-run 标记,报告如实标注。
+    """
     if extraction.run_id != manifest.run_id:
         raise ValueError(
             f"extraction.run_id={extraction.run_id} 与 manifest.run_id={manifest.run_id} 不一致"
@@ -250,7 +255,17 @@ def score(
         ok_keys,
     )
 
-    health = _health(extraction, evidence, metrics, cfg, n_ok, n_error, missing_evidence_urls)
+    health = _health(
+        extraction,
+        evidence,
+        metrics,
+        cfg,
+        n_ok,
+        n_error,
+        missing_evidence_urls,
+        mentions_apply=manifest.surface_kind != "search_only",
+        partial=partial,
+    )
 
     used_evidence = tuple(
         sorted(
@@ -310,8 +325,14 @@ def _health(
     n_ok: int,
     n_error: int,
     missing_evidence_urls: set[str],
+    *,
+    mentions_apply: bool = True,
+    partial: bool = False,
 ) -> HealthSummary:
-    """自动验证健康灯(计划书 10.1):总体 = 最差指标,确定性计算。"""
+    """自动验证健康灯(计划书 10.1):总体 = 最差指标,确定性计算。
+
+    mentions_apply=False(纯搜索表面,没有回答正文):提及类指标不适用,不拿它判"排名无法区分"。
+    """
     flags: list[str] = []
 
     unique_urls = {c.normalized_url for c in extraction.citations}
@@ -360,10 +381,19 @@ def _health(
         flags.append("failure-yellow")
 
     # 全部品牌的提及覆盖区间存在公共交集 → 无法区分排名(计划书 10.1:红"排名仅供参考")
+    # 纯搜索表面没有回答正文:提及覆盖恒为 0、区间必然全等,拿它判红会把引用数据也一并说成"仅供参考"。
     coverages = [m.mention_coverage for m in metrics if m.mention_coverage.n > 0]
-    if len(coverages) >= 2 and max(c.low for c in coverages) <= min(c.high for c in coverages):
+    if (
+        mentions_apply
+        and len(coverages) >= 2
+        and max(c.low for c in coverages) <= min(c.high for c in coverages)
+    ):
         _worsen("red")
         flags.append("all-intervals-overlap:ranking-indicative-only")
+
+    if partial:  # 没跑完的阶段性结果:只覆盖已问到的部分,不能当成完整基线看
+        _worsen("yellow")
+        flags.append("partial-run:budget-cap")
 
     return HealthSummary(
         citation_validity_rate=validity,
