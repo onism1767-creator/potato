@@ -5,15 +5,15 @@
 所有函数输入 = 已解析的 JSON dict,输出 = 可 json 的 dict;坏输入抛 ValueError(server 映射 400)。
 """
 
+import math
 from typing import Any, cast
 
 from aivis.configcheck import has_errors, validate_config
 from aivis.contracts.adapter import SurfaceSpec
 from aivis.contracts.config import Brand, FrozenConfig, Intent, Question
 from aivis.providers import catalog, registry
-from aivis.providers.anthropic import TIER_INFO, AnthropicAdapter, estimate_draft_cost_usd
+from aivis.providers.anthropic import TIER_INFO, estimate_draft_cost_usd
 from aivis.providers.drafter import AnthropicTextSender, TextSender, draft_all
-from aivis.providers.mock import MockAdapter
 from aivis.templater import draft_template_segments
 
 _INTENTS = ("discovery", "comparison", "local", "brand_defense")
@@ -43,6 +43,18 @@ def _questions_from(payload: dict[str, Any]) -> tuple[Question, ...]:
     return tuple(_question(q) for q in raw)
 
 
+def _budget(payload: dict[str, Any]) -> float:
+    """预算上限:必须是有限的数字(空值 / Infinity / 文字 → 干净的 400,而不是让服务端崩)。"""
+    raw = payload.get("budget_cap_usd", 13.0)
+    try:
+        cap = float(raw)
+    except (TypeError, ValueError):
+        raise ValueError("预算上限必须是一个数字") from None
+    if not math.isfinite(cap):
+        raise ValueError("预算上限必须是一个有限的数字")
+    return cap
+
+
 def _config_from(payload: dict[str, Any], questions: tuple[Question, ...]) -> FrozenConfig:
     """从向导输入(单一输入源)+ 题目组装焦点模式 FrozenConfig(内存,不落盘)。"""
     focal_name = _str(payload, "focal_name", required=True)
@@ -50,6 +62,8 @@ def _config_from(payload: dict[str, Any], questions: tuple[Question, ...]) -> Fr
     aliases = tuple(str(a).strip() for a in (payload.get("aliases") or []) if str(a).strip())
     peers = [Brand(name=focal_name, aliases=aliases, domains=(focal_domain,), is_focal=True)]
     for c in payload.get("competitors") or []:
+        if not isinstance(c, dict):
+            raise ValueError("competitors 的每一项必须是 {name, domain}")
         name, domain = str(c.get("name", "")).strip(), str(c.get("domain", "")).strip()
         if name and domain:
             peers.append(Brand(name=name, domains=(domain,)))
@@ -68,7 +82,7 @@ def _config_from(payload: dict[str, Any], questions: tuple[Question, ...]) -> Fr
         n_runs=3,
         sequential=bool(payload.get("sequential")),  # 向导勾选:序贯采样(n_runs 作上限)
         max_uses=3,
-        budget_cap_usd=float(payload.get("budget_cap_usd", 13.0)),
+        budget_cap_usd=_budget(payload),
     )
 
 
@@ -140,21 +154,31 @@ def validate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def estimate(payload: dict[str, Any]) -> dict[str, Any]:
-    """成本上界(离线、不花钱、不调 API):n 次调用 × 单价表。"""
+    """成本上界(离线、不花钱、不调 API):n 次调用 × 单价表。
+
+    surfaces(向导"真实测量"勾选的模型列表)→ 逐个估算并合计;否则按 provider(默认 mock)
+    + 档位估一个。适配器一律经 registry 构造(引擎名分支只在那里,CLAUDE.md §4.3)。
+    """
     cfg = _config_from(payload, _questions_from(payload))
-    provider = _str(payload, "provider") or "mock"
-    adapter = (
-        AnthropicAdapter(tier=cfg.tier) if provider == "anthropic" else MockAdapter(tier=cfg.tier)
-    )
     n_calls = len(cfg.questions) * cfg.n_runs
-    est = adapter.estimate_cost_usd(n_calls, cfg)
+    surfaces = [str(s).strip() for s in (payload.get("surfaces") or []) if str(s).strip()]
+    if surfaces:
+        adapters = [registry.make_adapter(SurfaceSpec.parse(s)) for s in surfaces]
+    else:
+        provider = _str(payload, "provider") or "mock"
+        if provider not in catalog.PROVIDERS:
+            raise ValueError("请先选择要测的 AI 模型(surfaces 为空)")
+        adapters = [
+            registry.make_adapter(SurfaceSpec(provider=provider, model=None), tier=cfg.tier)
+        ]
+    estimates = [a.estimate_cost_usd(n_calls, cfg) for a in adapters]
     return {
-        "provider": adapter.provider_name,
-        "model": adapter.model_name,
+        "provider": adapters[0].provider_name if len(adapters) == 1 else "multiple",
+        "model": ", ".join(a.model_name for a in adapters),
         "n_calls": n_calls,
-        "est_usd": round(est, 2),
+        "est_usd": round(sum(estimates), 2),
         "budget_cap_usd": cfg.budget_cap_usd,
-        "over_budget": est > cfg.budget_cap_usd,
+        "over_budget": any(e > cfg.budget_cap_usd for e in estimates),  # 每个表面各自受限
     }
 
 
@@ -208,7 +232,8 @@ def tiers(payload: dict[str, Any]) -> dict[str, Any]:
     n_calls = len(cfg.questions) * cfg.n_runs
     out: list[dict[str, Any]] = []
     for info in TIER_INFO:
-        est = AnthropicAdapter(tier=info.id).estimate_cost_usd(n_calls, cfg)
+        adapter = registry.make_adapter(SurfaceSpec(provider="anthropic", model=info.model))
+        est = adapter.estimate_cost_usd(n_calls, cfg)
         out.append(
             {
                 "id": info.id,

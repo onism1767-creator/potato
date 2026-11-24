@@ -12,6 +12,7 @@
 
 import json
 import secrets
+import sys
 import tempfile
 import webbrowser
 from collections.abc import Callable
@@ -28,6 +29,8 @@ _DEFAULT_PORT = 8765
 # 前端静态页随包分发(package-data);便携包里也在 app/aivis/gui/static/
 _STATIC_DIR = Path(__file__).parent / "static"
 
+_INTERNAL_ERROR = "向导内部出错了(细节没有回传给浏览器)。请重试一次;仍不行请关掉向导窗口重新启动。"
+
 # 不花钱端点(2.3):dict→dict 逻辑在 gui.api;run(花钱/subprocess)留下一轮
 _POST_ENDPOINTS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "/api/draft": api.draft,
@@ -43,7 +46,10 @@ class GuiServer(ThreadingHTTPServer):
     """ThreadingHTTPServer + 每会话 token / 占位首页 / 允许的 Host 集合。"""
 
     daemon_threads = True
-    allow_reuse_address = True
+    # Windows 上 SO_REUSEADDR 的含义是"允许别的进程并绑同一个端口":双击两次启动脚本会悄悄起两个
+    # 服务、两个 token,连接落到哪个由系统决定(页面随机 403、在跑的任务被影子化)。Windows 上关掉,
+    # 第二个实例会老实报"端口被占用";其它系统保留(那里它只是允许重启后立刻复用端口)。
+    allow_reuse_address = sys.platform != "win32"
 
     def __init__(self, server_address: tuple[str, int], token: str, index_html: str) -> None:
         super().__init__(server_address, _Handler)
@@ -71,8 +77,9 @@ class _Handler(BaseHTTPRequestHandler):
         return self.headers.get("Host", "") in self._gui.allowed_hosts
 
     def _token_ok(self) -> bool:
-        # 常量时间比较,避免 token 计时侧信道
-        return secrets.compare_digest(self.headers.get("X-Aivis-Token", ""), self._gui.token)
+        # 常量时间比较,避免 token 计时侧信道(按字节比:头里带非 ASCII 字符时照样拒绝,不抛错)
+        given = self.headers.get("X-Aivis-Token", "").encode("utf-8", "replace")
+        return secrets.compare_digest(given, self._gui.token.encode("utf-8"))
 
     def do_GET(self) -> None:
         if not self._host_ok():
@@ -100,6 +107,8 @@ class _Handler(BaseHTTPRequestHandler):
                     rp = paths[int(query["surface"][0])]
                 except (ValueError, IndexError):
                     rp = None
+            if rp and not Path(rp).resolve().is_relative_to(self._gui.work_root.resolve()):
+                rp = None  # 只读本次向导自己工作目录里的报告(路径来自子进程输出,多一道保险)
             if not rp or not Path(rp).exists():
                 self._send(404, "text/plain; charset=utf-8", b"no report yet")
             else:
@@ -126,6 +135,8 @@ class _Handler(BaseHTTPRequestHandler):
                 )
             except ValueError as e:
                 self._json(400, {"error": str(e)})
+            except Exception:
+                self._json(500, {"error": _INTERNAL_ERROR})
             return
         endpoint = _POST_ENDPOINTS.get(self.path)
         if endpoint is None:
@@ -137,6 +148,10 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(e)})
         except RuntimeError as e:  # 上游失败(如 AI 档起草 DraftError):非客户端错,返 502
             self._json(502, {"error": str(e)})
+        except Exception:
+            # 其余一切(磁盘满、类型错、没料到的 SDK 异常…):回一句固定的话。
+            # 以前这里不接 → 连接直接断开、前端永远停在"处理中";也不回传异常文本(可能带敏感信息)
+            self._json(500, {"error": _INTERNAL_ERROR})
 
     def _read_json(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length") or 0)
@@ -178,7 +193,19 @@ def build_server(host: str = "127.0.0.1", port: int = _DEFAULT_PORT) -> GuiServe
 
 def serve(*, port: int = _DEFAULT_PORT, open_browser: bool = True) -> None:
     """启动本地向导(阻塞至 Ctrl-C);只绑 127.0.0.1。"""
-    server = build_server("127.0.0.1", port)
+    try:
+        server = build_server("127.0.0.1", port)
+    except (OSError, OverflowError) as e:
+        # 端口被占(多半是向导已经在运行)或端口号不合法:说人话,不吐 traceback
+        url = f"http://127.0.0.1:{port}/"
+        print(
+            f"无法在端口 {port} 启动向导({e.__class__.__name__})。"
+            f"如果向导已经在运行,直接在浏览器打开 {url} 即可;否则换一个端口:aivis gui --port 8766",
+            flush=True,
+        )
+        if open_browser and isinstance(e, OSError):
+            webbrowser.open(url)
+        return
     url = f"http://127.0.0.1:{server.server_address[1]}/"
     print(f"aivis 本地向导运行中: {url}  (Ctrl-C 退出)", flush=True)
     if open_browser:

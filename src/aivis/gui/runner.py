@@ -20,6 +20,7 @@ from typing import Any
 
 import yaml
 
+from aivis.configio import load_frozen_config
 from aivis.contracts.adapter import SurfaceSpec
 from aivis.contracts.config import FrozenConfig
 from aivis.gui import api
@@ -32,16 +33,24 @@ _SURFACE_RE = re.compile(r"^PROGRESS\s+surface\s+(\d+)/(\d+)\s+(\S+)")
 _REPORT_RE = re.compile(r"^REPORT\s+(.+)$")
 _BILL_RE = re.compile(r"^BILL\s+(\S+)\s+([\d.]+)")
 _COMPARISON_RE = re.compile(r"^COMPARISON\s+(.+)$")
+# "BUDGET_STOP provider:model run_id done/total spent":该表面花到预算上限停下(只有阶段性报告)
+_BUDGET_STOP_RE = re.compile(r"^BUDGET_STOP\s+(\S+)\s+(\S+)\s+(\d+)/(\d+)\s+([\d.]+)")
+_RUN_ID_RE = re.compile(r"[0-9a-f]{8,64}")  # run_id 是 uuid4().hex;续跑请求里的值只认这种
+_EXIT_BUDGET_STOP = 6  # 与 cli.EXIT_BUDGET_STOP 一致(测试钉住):跑到了头,但有表面预算到顶
 # probe 是绝大部分耗时,占 0~85%;其余四段很快,各占完成时的固定点位
 _STAGE_DONE_PERCENT = {"probe": 86, "extract": 90, "verify": 94, "score": 97, "report": 99}
 
 
-def _run_command(*, config_dir: Path, data_dir: Path, surfaces: list[str]) -> list[str]:
+def _run_command(
+    *, config_dir: Path, data_dir: Path, surfaces: list[str], run_id: str | None = None
+) -> list[str]:
     """构造 `aivis run --surfaces …` 子进程命令:`python -m aivis.cli ...`。
 
     便携包里 sys.executable 是官方 embeddable python.exe,同样适用。
     key 只走子进程 env、不进命令行(进程列表可见);表面列表经命令行(非密钥,可见无妨)。
+    run_id:续跑一个预算到顶停下的表面(此时 surfaces 只有那一个)。
     """
+    resume = ["--run-id", run_id] if run_id else []
     return [
         sys.executable,
         "-m",
@@ -54,6 +63,7 @@ def _run_command(*, config_dir: Path, data_dir: Path, surfaces: list[str]) -> li
         ",".join(surfaces),
         "run",
         "--yes",
+        *resume,
     ]
 
 
@@ -91,6 +101,9 @@ class JobStatus:
     report_paths: list[str] = field(default_factory=list)  # 各表面 report.html
     bills: list[dict[str, Any]] = field(default_factory=list)  # [{label, cost}]
     comparison_path: str | None = None
+    # 预算到顶停下的表面(前端据此让用户选是否续跑):
+    # [{label, run_id, done, total, spent, report_index}]
+    budget_stops: list[dict[str, Any]] = field(default_factory=list)
 
 
 class Runner:
@@ -108,6 +121,7 @@ class Runner:
         data_dir: Path,
         surfaces: list[str],
         env_keys: dict[str, str],
+        run_id: str | None = None,
     ) -> str:
         with self._lock:
             if self._proc is not None and self._proc.poll() is None:
@@ -119,7 +133,9 @@ class Runner:
             provider = "mock" if all(s.startswith("mock:") for s in surfaces) else "real"
             env["PYTHONIOENCODING"] = "utf-8"  # 子进程按 UTF-8 输出(中文 Windows 默认 gbk 会崩)
             env["PYTHONUNBUFFERED"] = "1"  # 管道下不块缓冲,PROGRESS 行实时到达(进度条用)
-            cmd = _run_command(config_dir=config_dir, data_dir=data_dir, surfaces=surfaces)
+            cmd = _run_command(
+                config_dir=config_dir, data_dir=data_dir, surfaces=surfaces, run_id=run_id
+            )
             proc = subprocess.Popen(
                 cmd,
                 env=env,
@@ -180,13 +196,28 @@ class Runner:
                     with self._lock:
                         job.comparison_path = m.group(1).strip()
                     continue
+                m = _BUDGET_STOP_RE.match(s)
+                if m:
+                    with self._lock:
+                        job.budget_stops.append(
+                            {
+                                "label": m.group(1),
+                                "run_id": m.group(2),
+                                "done": int(m.group(3)),
+                                "total": int(m.group(4)),
+                                "spent": float(m.group(5)),
+                                # 它的阶段性报告刚刚打印过 REPORT 行 = 目前最后一份
+                                "report_index": len(job.report_paths) - 1,
+                            }
+                        )
+                    continue
                 for stage in _STAGES:  # "probe 完成 / extract 完成 …":阶段推进
                     if s.startswith(stage):
                         with self._lock:
                             job.stage = stage
         rc = proc.wait()
         with self._lock:
-            if rc != 0:
+            if rc not in (0, _EXIT_BUDGET_STOP):  # 6 = 跑到了头、只是有表面预算到顶:不算失败
                 job.state = "error"
                 job.error = f"run 失败(退出码 {rc}):" + " ".join(tail[-3:])
                 return
@@ -203,6 +234,10 @@ class Runner:
             else:
                 job.state = "done"
                 job.report_path = str(report)
+
+    def is_running(self) -> bool:
+        with self._lock:
+            return self._proc is not None and self._proc.poll() is None
 
     def status(self) -> dict[str, Any]:
         with self._lock:
@@ -235,6 +270,7 @@ class Runner:
                 "report_paths": list(j.report_paths),
                 "bills": [dict(b) for b in j.bills],
                 "comparison_path": j.comparison_path,
+                "budget_stops": [dict(b) for b in j.budget_stops],
             }
 
 
@@ -310,13 +346,39 @@ def _resolve_surfaces(
 
 
 def start_run(runner: Runner, payload: dict[str, Any], work_root: Path) -> dict[str, Any]:
-    """冻结配置 + 起 run 子进程。真实表面必须带对应引擎的 api_key(只入子进程 env)。"""
-    questions = api._questions_from(payload)
-    cfg = api._config_from(payload, questions)
-    surfaces, env_keys = _resolve_surfaces(payload, cfg)
+    """冻结配置 + 起 run 子进程。真实表面必须带对应引擎的 api_key(只入子进程 env)。
+
+    payload.resume = {surface, run_id}:用户选择"调高上限接着跑"一个预算到顶停下的表面。
+    此时沿用磁盘上已冻结的那份配置、只改预算上限(测量基线一字不变),并带上 --run-id 续跑。
+    """
+    if runner.is_running():  # 先查再写:被拒绝的请求不许覆盖正在跑的那份配置
+        raise ValueError("已有测量任务在运行,请等它结束再开新的")
     config_dir, data_dir = work_root / "config", work_root / "data"
+    resume = payload.get("resume")
+    run_id: str | None = None
+    if resume is not None:
+        if not isinstance(resume, dict):
+            raise ValueError("resume 必须是 {surface, run_id}")
+        run_id = str(resume.get("run_id", "")).strip()
+        if not _RUN_ID_RE.fullmatch(run_id):
+            raise ValueError("续跑请求里的 run_id 不合法")
+        if not (config_dir / "questions.yml").exists():
+            raise ValueError("找不到上一次运行的配置(向导重启过?),无法续跑;请重新开始一次测量")
+        frozen = load_frozen_config(config_dir)
+        new_cap = api._budget(payload)
+        if not new_cap > frozen.budget_cap_usd:
+            raise ValueError(f"新的预算上限必须大于当前的 ${frozen.budget_cap_usd:.2f}")
+        cfg = FrozenConfig.model_validate(frozen.model_dump() | {"budget_cap_usd": new_cap})
+        payload = {**payload, "provider": "real", "surfaces": [resume.get("surface", "")]}
+    else:
+        cfg = api._config_from(payload, api._questions_from(payload))
+    surfaces, env_keys = _resolve_surfaces(payload, cfg)
     write_wizard_config(config_dir, cfg)
     job_id = runner.start(
-        config_dir=config_dir, data_dir=data_dir, surfaces=surfaces, env_keys=env_keys
+        config_dir=config_dir,
+        data_dir=data_dir,
+        surfaces=surfaces,
+        env_keys=env_keys,
+        run_id=run_id,
     )
     return {"job_id": job_id, "state": "running"}

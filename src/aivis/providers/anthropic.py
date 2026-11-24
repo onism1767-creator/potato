@@ -229,7 +229,11 @@ class AnthropicAdapter:
         except (TypeError, ValueError, AttributeError, KeyError, IndexError) as e:
             # 返回形状出乎意料时钱已经花了:原样留底、记为失败、花费照记,
             # 不让异常冲出去(否则这次调用既没留底也没进账,整批还会崩在这里)
-            return self._failure(question, run_id, run_index, responses, "parse_error", e)
+            try:
+                return self._failure(question, run_id, run_index, responses, "parse_error", e)
+            except (TypeError, ValueError, AttributeError, KeyError, IndexError):
+                # 连留底都做不了(形状坏到导不出来):至少如实记一条失败,不崩整批
+                return self._failure(question, run_id, run_index, [], "parse_error", e)
 
     def _send(self, params: dict[str, Any]) -> Message:
         """唯一网络触点(测试以替身覆盖)。"""

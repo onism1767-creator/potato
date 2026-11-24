@@ -119,6 +119,9 @@
   .prov .ph{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:2px 0 8px;}
   .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;}
   .keyrow{margin-top:8px;}
+  .bstop{margin:12px 0 0;}
+  .bsrow{margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .bsrow input{width:110px;}
   .bill{font-size:12.5px;color:#4A6B23;margin-top:6px;line-height:1.6;}
   .total{font-size:13px;font-weight:600;color:#3C6E0F;margin-top:10px;}
   /* 运行进度条:活动文字 + 右侧 ETA + 进度条 + 下方明细 */
@@ -156,8 +159,8 @@
     <div class="bucket" data-i18n="s0_how">工作原理</div>
     <ol class="howto">
       <li data-i18n-html="s0_how1"><b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 AI 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。</li>
-      <li data-i18n-html="s0_how2"><b>每道题会问多次</b>,因为 AI 的回答每次都不一样——单次回答不可靠。它会一直问到冒出的品牌<b>不再变化</b>(稳定)为止,所以飘的题多采样、稳的题更省钱。</li>
-      <li data-i18n-html="s0_how3"><b>用固定规则打分,不用 AI 当裁判。</b>只有清晰的品牌名才计入(保守计数)。证据分三档——<b>已提及 → 被引用 → 已核实</b>——只有<i>已核实</i>(被引用的页面可访问且确实点了该品牌)才计入核心分。</li>
+      <li data-i18n-html="s0_how2"><b>每道题会问多次</b>,因为 AI 的回答每次都不一样——单次回答不可靠。默认每道题问 <b>3 次</b>;在第 3 步勾选“自适应采样”后,回答已经稳定的题会少问、省钱。</li>
+      <li data-i18n-html="s0_how3"><b>用固定规则打分,不用 AI 当裁判。</b>只有清晰的品牌名才计入(保守计数)。证据分三档——<b>已提及 → 被引用 → 已核实</b>——只有<i>已核实</i>才计入核心分。<b>注意:</b>向导默认不去抓被引用的网页,这里的“已核实”是按“链接可访问”这个<b>假设</b>算的(报告里会标明);要真的逐页抓取核对,请用命令行加 <code>--check fetch</code>。</li>
       <li data-i18n-html="s0_how4"><b>每个数字都带不确定区间。</b>小到不真实的差距会标成“无法区分”——绝不给假的、过度精确的排名。</li>
     </ol>
 
@@ -225,8 +228,8 @@
     <div class="trust notice">
       <div class="trust-h" data-i18n="s3_notice_h">全程在你自己的电脑上运行,不上传任何数据。</div>
       <ul>
-        <li data-i18n-html="s3_notice1"><b>100% 本地。</b>程序在你机器的 <b>127.0.0.1</b> 上运行——回路里没有我们的任何服务器。它开源(MIT),你能读每一行;报告里的<b>“网络去向”</b>面板会显示这次运行到底连了哪里。</li>
-        <li data-i18n-html="s3_notice2"><b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——只发往 <b>api.anthropic.com</b>(你自己的账户)。</li>
+        <li data-i18n-html="s3_notice1"><b>100% 本地。</b>程序在你机器的 <b>127.0.0.1</b> 上运行——回路里没有我们的任何服务器。它开源(MIT),你能读每一行;报告里的<b>“网络去向”</b>面板会列出调用的是哪家接口、核对了多少个被引域名。</li>
+        <li data-i18n-html="s3_notice2"><b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——每家的 key 只发往那一家自己的接口(下方逐家列出),别处都不去。</li>
         <li data-i18n-html="s3_notice3"><b>作者零收益——本工具免费。</b>你花的任何钱都直接付给你选的 AI 提供商,付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 API key,由各家直接向你计费。</li>
       </ul>
     </div>
@@ -251,7 +254,7 @@
     </div>
     <label class="check"><input type="checkbox" id="sequential"/>
       <span data-i18n="s3_seq">自适应采样——回答已稳定时每题少问几次(真实运行省钱;上方估算仍是上界)。</span></label>
-    <button class="ghost" onclick="doEstimate()" data-i18n="s3_est">估算成本(模拟)</button>
+    <button class="ghost" onclick="doEstimate()" data-i18n="s3_est">估算成本</button>
     <button onclick="doRun()" id="runbtn" data-i18n="s3_start">开始测量</button>
     <div id="emsg" class="msg"></div>
     <div id="progress" class="prog hide">
@@ -270,6 +273,8 @@ const TOKEN = document.querySelector('meta[name=aivis-token]').content;
 let QUESTIONS = [];
 let DRAFT_EST = 0;       // AI 起草这一步的预估(免费档=0),用于合并总额
 let MODELS = null;       // /api/models 返回的目录(各家 + 预估)
+let LAST_STOPS = [];     // 最近一次运行里预算到顶停下的表面(用户可选是否接着跑)
+let POLL_FAILS = 0;      // 连续几次没连上本地服务(超过几次才报错,容忍瞬时抖动)
 let SELECTED = new Set();// 已勾选的表面 key(provider:model)
 let KEYS = {};           // 各家 key(仅内存;随 /api/run 发给本机服务)
 const $ = (id) => document.getElementById(id);
@@ -287,10 +292,10 @@ const I18N = {
   s0_how:{zh:'工作原理', en:'How it works'},
   s0_how1:{zh:'<b>24 道固定问题,按固定的 8 / 6 / 6 / 4 配比</b>——8 道发现题(“……什么最好”)、6 道比较题(“各品牌在……上如何”)、6 道本地/场景题、4 道品牌防御题。前 20 道<b>不点任何品牌名</b>,这样测试不会把 AI 往你身上引——只有 4 道防御题会有意点你的品牌名。固定题集与配比,正是让多次运行<b>可比、可复现</b>而不是每次乱飘的原因。',
     en:'<b>24 fixed questions, in a fixed 8 / 6 / 6 / 4 mix</b> — 8 discovery ("what\'s best for…"), 6 comparison ("how do brands compare on…"), 6 local/scenario, and 4 brand-defense. The first 20 <b>never name any brand</b>, so the test can\'t nudge the AI toward you — only the 4 defense questions name your brand on purpose. Keeping the set and the mix fixed is what makes runs <b>comparable and repeatable</b> instead of drifting every time.'},
-  s0_how2:{zh:'<b>每道题会问多次</b>,因为 AI 的回答每次都不一样——单次回答不可靠。它会一直问到冒出的品牌<b>不再变化</b>(稳定)为止,所以飘的题多采样、稳的题更省钱。',
-    en:"<b>Each question is asked several times</b>, because an AI's answer varies from run to run — a single answer isn't reliable. It keeps asking until the brands that come up <b>stop changing</b> (stable), so shaky questions get more samples and steady ones cost less."},
-  s0_how3:{zh:'<b>用固定规则打分,不用 AI 当裁判。</b>只有清晰的品牌名才计入(保守计数)。证据分三档——<b>已提及 → 被引用 → 已核实</b>——只有<i>已核实</i>(被引用的页面可访问且确实点了该品牌)才计入核心分。',
-    en:'<b>Scored by fixed rules, not an AI judge.</b> Only clear brand names count (conservative). Evidence has three levels — <b>mentioned → cited → verified</b> — and only <i>verified</i> (the cited page is reachable and really names the brand) counts toward the core score.'},
+  s0_how2:{zh:'<b>每道题会问多次</b>,因为 AI 的回答每次都不一样——单次回答不可靠。默认每道题问 <b>3 次</b>;在第 3 步勾选“自适应采样”后,回答已经稳定的题会少问、省钱。',
+    en:"<b>Each question is asked several times</b>, because an AI's answer varies from run to run — a single answer isn't reliable. By default every question is asked <b>3 times</b>; tick &ldquo;Adaptive sampling&rdquo; in Step 3 and questions whose answers are already stable are asked fewer times, which saves money."},
+  s0_how3:{zh:'<b>用固定规则打分,不用 AI 当裁判。</b>只有清晰的品牌名才计入(保守计数)。证据分三档——<b>已提及 → 被引用 → 已核实</b>——只有<i>已核实</i>才计入核心分。<b>注意:</b>向导默认不去抓被引用的网页,这里的“已核实”是按“链接可访问”这个<b>假设</b>算的(报告里会标明);要真的逐页抓取核对,请用命令行加 <code>--check fetch</code>。',
+    en:'<b>Scored by fixed rules, not an AI judge.</b> Only clear brand names count (conservative). Evidence has three levels — <b>mentioned → cited → verified</b> — and only <i>verified</i> counts toward the core score. <b>Note:</b> the wizard does not fetch the cited pages by default, so &ldquo;verified&rdquo; here <b>assumes</b> each link is reachable (the report says so); to really fetch and check every page, use the command line with <code>--check fetch</code>.'},
   s0_how4:{zh:'<b>每个数字都带不确定区间。</b>小到不真实的差距会标成“无法区分”——绝不给假的、过度精确的排名。',
     en:'<b>Every number comes with an uncertainty range.</b> Gaps too small to be real are shown as "can\'t tell apart" — never a fake, over-precise ranking.'},
   s0_report:{zh:'报告会给出什么', en:'What the report shows'},
@@ -333,8 +338,8 @@ const I18N = {
   s2_val_clean:{zh:'✓ 全部 24 题通过检查,没有偏置问题。', en:'✓ All 24 questions passed — no bias issues.'},
   s3_ph:{zh:'第 3 步 · 运行与报告', en:'Step 3 · Run & report'},
   s3_notice_h:{zh:'全程在你自己的电脑上运行,不上传任何数据。', en:'Everything runs on your own computer. Nothing is uploaded.'},
-  s3_notice1:{zh:'<b>100% 本地。</b>程序在你机器的 <b>127.0.0.1</b> 上运行——回路里没有我们的任何服务器。它开源(MIT),你能读每一行;报告里的<b>“网络去向”</b>面板会显示这次运行到底连了哪里。',
-    en:'<b>100% local.</b> The app runs at <b>127.0.0.1</b> on your machine — there is no server of ours in the loop. It\'s open-source (MIT), so you can read every line, and the report\'s <b>"network destinations"</b> panel shows exactly where the run connected.'},
+  s3_notice1:{zh:'<b>100% 本地。</b>程序在你机器的 <b>127.0.0.1</b> 上运行——回路里没有我们的任何服务器。它开源(MIT),你能读每一行;报告里的<b>“网络去向”</b>面板会列出调用的是哪家接口、核对了多少个被引域名。',
+    en:'<b>100% local.</b> The app runs at <b>127.0.0.1</b> on your machine — there is no server of ours in the loop. It\'s open-source (MIT), so you can read every line, and the report\'s <b>"network destinations"</b> panel lists which provider API was called and how many cited domains were checked.'},
   s3_notice2:{zh:'<b>你的 API key 是安全的。</b><b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不写入磁盘、绝不记日志、绝不出现在命令行</b>——每家的 key 只发往那一家自己的接口(下方逐家列出),别处都不去。',
     en:'<b>Your API keys are safe.</b> Held <b>in memory only</b>, passed to the local run through environment variables — <b>never written to disk, never logged, never put on a command line</b> — and each key is sent only to that provider\'s own API (listed per provider below), nowhere else.'},
   s3_notice3:{zh:'<b>作者零收益——本工具免费。</b>你花的任何钱都直接付给你选的 AI 提供商(Anthropic / OpenAI / Google / Perplexity / xAI),付的是 AI 本身的费用。<b>你不是在给作者付钱。</b>你用自己的 API key,由各家直接向你计费。',
@@ -345,14 +350,10 @@ const I18N = {
   s3_real:{zh:'真实测量(选择要测的 AI · 花钱)', en:'Real measurement (pick the AIs to test · costs money)'},
   s3_key_mini:{zh:'每家的 key <b>只在内存里</b>,通过环境变量传给本地运行——<b>绝不存盘、绝不记日志</b>,只发往那一家自己的接口(每家卡片上写明)。',
     en:'Each key is held <b>in memory only</b> and handed to the local run through an environment variable — <b>never saved to disk, never logged</b>, and sent only to that provider\'s own API (shown on each card).'},
-  s3_key:{zh:'API key(仅内存;发给这次本地运行,绝不保存)', en:'API key (memory only; sent to this local run, never saved)'},
   s3_budget:{zh:'预算上限(美元;每个 AI 各自受限)', en:'Budget cap (USD; applies to each AI separately)'},
-  s3_tier:{zh:'模型档位——在质量与成本间选(估算针对你当前的题目)', en:'Model tier — pick quality vs cost (estimates are for your current questions)'},
-  s3_tier_note:{zh:'档位越高,推理与准确度越好、成本越高;三档的测量方式相同。运行会按你的预算硬封顶——若估算显示红色,会在超支前被拦下。',
-    en:'Higher tiers mean better reasoning & accuracy at higher cost; all three measure the same way. The run is hard-capped at your budget — if an estimate shows red it will be blocked before overspending.'},
   s3_seq:{zh:'自适应采样——回答已稳定时每题少问几次(真实运行省钱;上方估算仍是上界)。',
     en:'Adaptive sampling — ask each question fewer times when answers are already stable (saves money on real runs; estimates above stay the upper bound).'},
-  s3_est:{zh:'估算成本(模拟)', en:'Estimate cost (mock)'},
+  s3_est:{zh:'估算成本', en:'Estimate cost'},
   s3_start:{zh:'开始测量', en:'Start measurement'},
   // 运行进度:活动文字(按阶段)
   act_starting:{zh:'正在启动…', en:'Starting…'},
@@ -368,7 +369,7 @@ const I18N = {
   prog_calls:{zh:' · 已问 {d}/{t} 次', en:' · {d}/{t} calls'},
   prog_cost:{zh:' · 已花 ${c}', en:' · spent ${c}'},
   cost_mock:{zh:'(免费 mock 演示,$0,没有真实调用)', en:'(free mock demo · $0 · no real calls)'},
-  cost_real:{zh:'(实际花费合计 ${c},每个 AI 已按你的预算上限硬封顶;明细见账单与报告)', en:'(actual cost ${c} in total, each AI hard-capped at your budget; details in the bill and reports)'},
+  cost_real:{zh:'(实际花费合计 ${c},每个 AI 花到你的预算上限就不再发新调用,已发出的调用仍会计费;明细见账单与报告)', en:'(actual cost ${c} in total, each AI stops sending new calls once it reaches your cap, calls already in flight are still billed; details in the bill and reports)'},
   // 动态消息
   b_discovery:{zh:'发现', en:'Discovery'},
   b_comparison:{zh:'比较', en:'Comparison'},
@@ -387,13 +388,10 @@ const I18N = {
   draft_ok_ai:{zh:'AI 已起草 24 道问题', en:'AI drafted 24 questions'},
   draft_ok_post:{zh:'。可自由审核/编辑,然后点检查。', en:'. Review/edit freely, then Check.'},
   draft_ok_free:{zh:'已起草 24 道问题。可自由编辑,然后点检查。', en:'Drafted 24 questions. Edit freely, then Check.'},
-  val_clean:{zh:'通过——没有问题。', en:'Clean — no issues.'},
   tiers_need:{zh:'请先在第 2 步起草问题,才能看到各 AI 的估算。', en:'Draft questions in Step 2 first to see per-AI estimates.'},
   est_failed:{zh:'估算失败', en:'estimate failed'},
   tier_over:{zh:' · 超预算', en:' · over budget'},
   over_blocked:{zh:' — 超预算,将被拦下', en:' — OVER BUDGET, will be blocked'},
-  state_label:{zh:'状态:', en:'State: '},
-  stage_label:{zh:' · 阶段:', en:' · stage: '},
   done_pre:{zh:'完成。', en:'Done. '},
   btn_open:{zh:'打开报告', en:'Open report'},
   btn_open_compare:{zh:'打开并列对比', en:'Open side-by-side comparison'},
@@ -409,6 +407,24 @@ const I18N = {
   m_unpinned:{zh:'底层会变', en:'underlying model changes'},
   m_searchonly:{zh:'纯搜索', en:'search only'},
   sel_none:{zh:'还没选任何 AI——在上面勾选至少一个。', en:'No AI selected yet — tick at least one above.'},
+  over_selected:{zh:'这些模型的预估超过了预算上限,开跑前就会被拦下:{m}。请调高上限,或取消勾选它们。',
+    en:'These models are estimated above your budget cap and would be blocked before starting: {m}. Raise the cap or untick them.'},
+  err_network:{zh:'没连上本地向导服务(它可能已被关闭)。请确认启动向导的那个窗口还开着,然后重试。',
+    en:'Could not reach the local wizard service (it may have been closed). Make sure the window that started the wizard is still open, then try again.'},
+  err_reports:{zh:'已经跑完的部分仍然可以打开:', en:'The parts that did finish can still be opened: '},
+  bs_title:{zh:'<b>{s}</b> 花到了预算上限:只完成 {d}/{t} 次调用,已花 ${c}。',
+    en:'<b>{s}</b> reached the budget cap: only {d} of {t} calls were made, ${c} spent.'},
+  bs_body:{zh:'它的报告是<b>阶段性报告</b>(只覆盖已问到的题,报告顶部有标注)。要不要接着跑完,由你决定:',
+    en:'Its report is a <b>partial report</b> (it covers only the questions asked so far and says so at the top). Whether to finish the run is up to you:'},
+  bs_open:{zh:'打开阶段性报告', en:'Open the partial report'},
+  bs_cap:{zh:'新的预算上限 $', en:'New budget cap $'},
+  bs_key:{zh:'该引擎的密钥', en:'API key for this engine'},
+  bs_go:{zh:'调高上限并接着跑', en:'Raise the cap and continue'},
+  bs_stop:{zh:'不想继续的话什么都不用点——阶段性报告已经生成,已问到的数据都保存着。',
+    en:'To stop here, do nothing — the partial report is ready and everything asked so far is saved.'},
+  bs_bad_cap:{zh:'新上限必须是一个比当前上限更大的数字。', en:'The new cap must be a number greater than the current cap.'},
+  bs_need_key:{zh:'接着跑之前请填入该引擎的密钥(密钥只在内存里,刷新页面后要再填一次)。',
+    en:'Enter the API key for this engine before continuing (keys live in memory only, so a page reload clears them).'},
   sel_total:{zh:'已选 {n} 个 AI · 合计预估 ≈ ${c}', en:'{n} AI selected · total estimate ≈ ${c}'},
   sel_draft:{zh:' · 含 AI 起草共 ≈ ${c}', en:' · incl. AI drafting ≈ ${c} total'},
   act_surface:{zh:'AI {i}/{n}:{s} · ', en:'AI {i}/{n}: {s} · '},
@@ -476,15 +492,21 @@ function inputs(){
   return {focal_name:v('focal_name'), focal_domain:v('focal_domain'),
     category:v('category'), aliases, competitors:comps};
 }
+async function call(path, opts){  // 没连上 / 回的不是 JSON:返回一条可显示的错误,绝不抛出去让界面卡死
+  try{
+    const r = await fetch(path, opts);
+    let data;
+    try{ data = await r.json(); }catch(e){ data = {error:t('err_network')}; }
+    return {status:r.status, data};
+  }catch(e){ return {status:0, data:{error:t('err_network')}}; }
+}
 async function post(path, body){
-  const r = await fetch(path, {method:'POST',
+  return call(path, {method:'POST',
     headers:{'X-Aivis-Token':TOKEN,'Content-Type':'application/json'},
     body:JSON.stringify(body)});
-  return {status:r.status, data:await r.json()};
 }
 async function getj(path){
-  const r = await fetch(path, {headers:{'X-Aivis-Token':TOKEN}});
-  return {status:r.status, data:await r.json()};
+  return call(path, {headers:{'X-Aivis-Token':TOKEN}});
 }
 function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
 
@@ -599,8 +621,13 @@ async function doValidate(){
 }
 async function doEstimate(){
   const prov = document.querySelector('input[name=prov]:checked').value;
-  const res = await post('/api/estimate',
-    {...inputs(), questions:QUESTIONS, provider:prov, budget_cap_usd:budget()});
+  const body = {...inputs(), questions:QUESTIONS, provider:prov, budget_cap_usd:budget()};
+  if(prov==='real'){
+    const chosen = chosenModels();
+    if(!chosen.length){ $('emsg').className='msg err'; $('emsg').textContent=t('sel_none'); return; }
+    body.surfaces = chosen.map(m=>m.key);
+  }
+  const res = await post('/api/estimate', body);
   if(res.status!==200){ $('emsg').className='msg err';
     $('emsg').textContent=res.data.error||JSON.stringify(res.data); return; }
   const d = res.data;
@@ -679,6 +706,9 @@ async function doRun(){
   if(prov==='real'){
     const chosen = chosenModels();
     if(!chosen.length){ $('runmsg').className='msg err'; $('runmsg').textContent=t('sel_none'); return; }
+    const over = chosen.filter(m=>m.over_budget);
+    if(over.length){ $('runmsg').className='msg err';
+      $('runmsg').textContent = t('over_selected').replace('{m}', over.map(m=>m.label).join(', ')); return; }
     body.surfaces = chosen.map(m=>m.key);
     body.api_keys = {};
     const missing = [];
@@ -745,16 +775,62 @@ function runDone(st){
     h += '<div class="bill">' + t('bill_label') + ' ' + st.bills.map(b=>esc(b.label)+' $'+b.cost.toFixed(4)).join(' · ')
       + ' · ' + t('bill_total') + ' $' + (st.spent_total||0).toFixed(4) + '</div>';
   }
+  LAST_STOPS = st.budget_stops || [];
+  LAST_STOPS.forEach((b, i)=>{
+    const prov = b.label.split(':')[0];
+    // 建议的新上限:按已花的钱外推跑完全部调用,再留两成余量;至少比当前上限高
+    const projected = b.done > 0 ? Math.ceil(b.spent / b.done * b.total * 1.2) : 0;
+    const suggest = Math.max(projected, Math.ceil(b.spent) + 1);
+    h += '<div class="notice bstop">'
+      + t('bs_title').replace('{s}', esc(b.label)).replace('{d}', b.done).replace('{t}', b.total).replace('{c}', b.spent.toFixed(2))
+      + ' ' + t('bs_body')
+      + '<div class="bsrow"><button class="ghost" onclick="openReport('+b.report_index+')">' + t('bs_open') + '</button></div>'
+      + '<div class="bsrow">' + t('bs_cap') + '<input type="text" id="bscap_'+i+'" value="'+suggest+'"/>'
+      + (KEYS[prov] ? '' : '<input type="password" id="bskey_'+i+'" placeholder="'+esc(t('bs_key'))+'" style="width:220px"/>')
+      + '<button onclick="doResume('+i+')">' + t('bs_go') + '</button></div>'
+      + '<div class="tm">' + t('bs_stop') + '</div><div id="bsmsg_'+i+'" class="msg"></div></div>';
+  });
   $('runmsg').innerHTML = h;
+}
+async function doResume(i){  // 用户选择:调高上限,把预算到顶停下的那个表面接着跑完
+  const b = LAST_STOPS[i]; if(!b) return;
+  const say = (m)=>{ $('bsmsg_'+i).className='msg err'; $('bsmsg_'+i).textContent=m; };
+  const cap = parseFloat($('bscap_'+i).value);
+  if(!(cap > 0) || !isFinite(cap)){ say(t('bs_bad_cap')); return; }
+  const prov = b.label.split(':')[0];
+  const keyBox = $('bskey_'+i);
+  const key = ((KEYS[prov]||'') || (keyBox ? keyBox.value : '')).trim();
+  if(!key){ say(t('bs_need_key')); return; }
+  KEYS[prov] = key;
+  const res = await post('/api/run', {provider:'real', budget_cap_usd:cap, surfaces:[b.label],
+    api_keys:{[prov]:key}, resume:{surface:b.label, run_id:b.run_id}});
+  if(res.status!==200){ say(res.data.error||JSON.stringify(res.data)); return; }
+  $('budget').value = cap;
+  $('runbtn').disabled = true; $('emsg').textContent='';
+  renderProgress({state:'running', stage:'', percent:0, done:0, total:0, elapsed_s:0, eta_s:null});
+  poll();
 }
 function runError(st){
   $('progress').classList.add('hide');
   $('runmsg').className = 'msg err';
-  $('runmsg').textContent = st.error || st.state;
+  let h = esc(String(st.error || st.state || t('err_network')));
+  const paths = st.report_paths || [];
+  if(paths.length){  // 已经跑完(也已经花了钱)的表面:报告照样能打开,不能因为后面出错就看不到
+    h += '<div style="margin-top:8px">' + t('err_reports');
+    paths.forEach((p, i)=>{ const lbl = (st.surfaces && st.surfaces[i]) ? st.surfaces[i] : ('#'+(i+1));
+      h += '<button class="ghost" onclick="openReport('+i+')">' + t('btn_open') + ' · ' + esc(lbl) + '</button> '; });
+    h += '</div>';
+  }
+  $('runmsg').innerHTML = h;
   $('runbtn').disabled = false;
 }
 async function poll(){
   const res = await getj('/api/status'); const st = res.data;
+  if(res.status===0){  // 没连上:先重试几次(瞬时抖动),连续失败才报错
+    if(++POLL_FAILS < 5){ setTimeout(poll, 2000); return; }
+    POLL_FAILS = 0; runError({error:t('err_network')}); return;
+  }
+  POLL_FAILS = 0;
   if(st.state==='running'){ renderProgress(st); setTimeout(poll, 1200); return; }
   if(st.state==='done'){ runDone(st); }
   else { runError(st); }

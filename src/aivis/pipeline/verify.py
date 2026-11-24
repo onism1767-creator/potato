@@ -50,33 +50,46 @@ __all__ = [
 _DEFAULT_MAX_AGE_DAYS = 7.0
 _USER_AGENT = "aivis/0.1 (reproducible visibility measurement; user-triggered verify)"
 _MAX_REDIRECTS = 5
+# 恶意/坏掉的 HTML(如几十 KB 的未闭合标签)能让标准库解析器平方级地慢:给解析设总时限
+_HTML_PARSE_BUDGET_S = 5.0
+_HTML_PARSE_CHUNK = 2048
 
 
 # -------------------------------------------------------------------- 共享 SSRF 安全策略
 # 被引 URL 来自不可信的 AI 回答(CLAUDE.md §5),所有网络核验器(head/fetch)在发请求前
-# 都必须先过这关。已知限制:不做 DNS 解析钉 IP(防 DNS-rebinding)、不解析十进制/八进制
-# IP 混淆写法——我们的威胁模型里"重定向到私网"是主要风险,已堵;这两类留作已知边界。
+# 都必须先过这关。已知限制:不做 DNS 解析钉 IP —— 一个 A 记录指向内网地址的普通域名、
+# 或 DNS-rebinding,这里拦不住(留作已知边界;重定向到私网、数字混淆写法已堵)。
 
 
 def _is_unsafe_host(host: str) -> bool:
     """私网/环回/链路本地/保留/未指定地址,或 localhost/.local → 视为不安全。"""
-    if not host:
+    h = host.lower().rstrip(".")  # "localhost." 这种带根点的写法与 "localhost" 等价
+    if not h:
         return True
-    h = host.lower()
-    if h == "localhost" or h.endswith(".local"):
+    if h == "localhost" or h.endswith((".localhost", ".local")):
         return True
     try:
         return not ipaddress.ip_address(h).is_global  # 覆盖私网/环回/链路本地/多播/保留/未指定
     except ValueError:
-        return False  # 普通域名:放行,交给黑白名单 + 重定向逐跳复查
+        pass
+    # 不是合法的点分 IP,但最后一段是纯数字或 0x 开头:这是 IP 的混淆写法
+    # (2130706433 / 127.1 / 0x7f.0.0.1 / 0177.0.0.1,有的系统会把它解析成 127.0.0.1)。
+    # 真实域名的顶级域不会是纯数字,所以一律拒绝。
+    last = h.rsplit(".", 1)[-1]
+    # 其余是普通域名:放行,交给黑白名单 + 重定向逐跳复查
+    return last.isdigit() or last.startswith("0x")
 
 
 def is_safe_url(url: str) -> bool:
     """共享安全策略:只允许 http(s),且目标 host 非私网/环回/保留地址。"""
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+    except ValueError:  # 畸形 URL(如 http://[foo]/x):解析都过不了,当然不安全
+        return False
     if parsed.scheme not in ("http", "https"):
         return False
-    return not _is_unsafe_host(parsed.hostname or "")
+    return not _is_unsafe_host(host)
 
 
 class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -163,11 +176,20 @@ class _TextExtractor(HTMLParser):
 
 
 def html_to_text(html: str) -> str:
-    """HTML → 消毒后的纯文本(空白折叠);残缺 HTML 尽力解析,绝不抛异常。"""
+    """HTML → 消毒后的纯文本(空白折叠);残缺 HTML 尽力解析,绝不抛异常。
+
+    分块喂给解析器并检查总时限:被引页面是不可信内容,几十 KB 的未闭合标签就能让标准库
+    解析器跑上几十秒到几小时(纯 CPU,socket 超时管不到)。超时就停,用已解析出的部分。
+    """
     parser = _TextExtractor()
+    deadline = time.monotonic() + _HTML_PARSE_BUDGET_S
     try:
-        parser.feed(html)
-        parser.close()
+        for start in range(0, len(html), _HTML_PARSE_CHUNK):
+            parser.feed(html[start : start + _HTML_PARSE_CHUNK])
+            if time.monotonic() > deadline:
+                break
+        else:
+            parser.close()
     except Exception:
         pass
     return re.sub(r"\s+", " ", " ".join(parser.chunks)).strip()
@@ -192,6 +214,7 @@ class PageFetchChecker:
         brands: Mapping[str, Sequence[str]],
         *,
         timeout: float = 15.0,
+        total_timeout: float = 30.0,
         max_bytes: int = 512_000,
         snippet_window: int = 120,
         allowed_domains: Sequence[str] | None = None,
@@ -200,7 +223,8 @@ class PageFetchChecker:
     ) -> None:
         # {规范品牌名: (用于匹配的清晰名/别名, ...)};只用清晰名,不含歧义别名
         self._brands = {name: tuple(t for t in terms if t) for name, terms in brands.items()}
-        self._timeout = timeout
+        self._timeout = timeout  # 单次 socket 操作的超时
+        self._total_timeout = total_timeout  # 读完整个正文的总时限(防"每秒吐 1 字节"拖死)
         self._max_bytes = max_bytes
         self._window = snippet_window
         self._allowed = tuple(d.lower() for d in allowed_domains) if allowed_domains else None
@@ -252,13 +276,29 @@ class PageFetchChecker:
             with _safe_opener().open(request, timeout=self._timeout) as resp:
                 status = int(resp.status)
                 content_type = str(resp.headers.get("Content-Type", ""))
-                raw = resp.read(self._max_bytes)
                 charset = resp.headers.get_content_charset() or "utf-8"
+                # 分段读 + 总时限:socket 超时只管"多久没数据",管不住慢速滴漏的响应
+                deadline = time.monotonic() + self._total_timeout
+                parts: list[bytes] = []
+                remaining = self._max_bytes
+                while remaining > 0:
+                    part = resp.read1(min(65536, remaining))
+                    if not part:
+                        break
+                    parts.append(part)
+                    remaining -= len(part)
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("page fetch exceeded the total time budget")
+                raw = b"".join(parts)
         except urllib.error.HTTPError as e:
             return int(e.code), "", ""
         finally:
             time.sleep(self._delay)  # 礼貌间隔:不对同批 URL 连环轰
-        return status, content_type, raw.decode(charset, errors="replace")
+        try:
+            text = raw.decode(charset, errors="replace")
+        except LookupError:  # 页面声明了 Python 不认识的编码:按 utf-8 读,别把能打开的页面记成不可达
+            text = raw.decode("utf-8", errors="replace")
+        return status, content_type, text
 
     def _analyze_page(self, text: str) -> tuple[tuple[str, ...], str | None]:
         """返回 (页面命中清晰名的品牌集合, 首个命中处的消毒短摘录)。"""
