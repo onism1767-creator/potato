@@ -18,7 +18,7 @@ description: >
 > 本 Skill 是同一能力的**对话式**入口(AI 帮你起草、你拍板),适合需要 AI 协作起草时用。
 
 > **原理一句话**:用 24 道固定题(8 发现 / 6 比较 / 6 本地 / 4 防御;前 20 道不点名品牌以免引导
-> AI)反复提问(每题问到"提及品牌集稳定"为止),再用**确定性规则**(非 AI 判官、保守计数、
+> AI)每题固定问 3 轮(可选 `--sequential`:某题几轮答案一致就少问),再用**确定性规则**(非 AI 判官、保守计数、
 > 三档证据 mentioned→cited→verified)计分,每个数字带不确定区间。可复现、可审计。
 > **🟥 成本诚实**:本工具开源免费、**作者不收任何费用**;你花的钱是付给你选的 AI 提供商
 > (Anthropic / OpenAI / Google / Perplexity / xAI)的 AI 费用(自带 key,各家直接计费),不经作者。
@@ -56,11 +56,13 @@ description: >
 只重放冻结配置,不再起草:
 - 先 mock 跑通(零成本):`aivis run --config-dir configs/<name>`
 - 真实运行(单引擎):`aivis run --config-dir configs/<name> --provider anthropic --model claude-sonnet-5 --yes`
-  (`--model` 缺省取该引擎 `--tier` 档默认;`aivis models` 列出全部 30 个表面与诚实标记)
+  (`--model` 缺省取该引擎 `--tier` 档默认;`aivis models` 列出目录里全部 30 项——27 个真实模型 + 3 个 mock——与诚实标记)
 - 真实运行(多引擎,用户选哪几个就填哪几个):
   `aivis run --config-dir configs/<name> --surfaces anthropic:claude-sonnet-5,openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:perplexity/sonar --yes`
   → 每个表面独立 run_id 与报告 + `analysis/compare/<id>/comparison.md|.html` 并列对比 + 账单;
   开跑前会查齐各家密钥环境变量(缺则不发任何调用直接退出)并列出各表面预估与合计
+- 真实运行前先 `aivis estimate`:`aivis init` 生成的配置默认 `budget_cap_usd: 5.0`,预估高于它的模型会在开跑前被拦,要先把上限调到不低于预估;
+- 可选开关:`--sequential`(自适应采样,稳定的题少问)、`--concurrency N`(同一表面内同时问几道题,默认 4)、`--check head|fetch`(真的去核对被引链接;默认 offline = 假设可达)、`--run-id`(续跑);
 - 流程 probe → extract → verify → score → report,产出 Markdown + CSV + HTML(默认离线核验;`--check fetch` 真抓被引页面)。
 
 ## 成本闸门(每次真实运行前)
@@ -68,7 +70,9 @@ description: >
 - **开跑前先估**(零成本、不联网):`aivis estimate --config-dir configs/<name> --provider anthropic [--model …]` 或 `--surfaces a:b,c:d` → 逐表面打印"≈N 次调用 ≈ $X(保守上界)"与合计,并对比 `budget_cap_usd`(每个表面各自受限),告诉你哪个会被拦。
 - mock(默认)估价为 0,静默通过;
 - 真实 provider:估算"≈N 次调用 ≈ $X"并要求人工确认;超 `budget_cap_usd` 开跑前直接阻断;
-- **运行中按真实累计花费硬封顶**:逼近 `budget_cap_usd` 即阻断,已完成部分保留、可 `--run-id` 续跑(估算只是上界,真实通常更低)。
+- **运行中按真实累计花费封顶**:花到 `budget_cap_usd` 就不再发新调用(已发出的照常完成并计费)。这时会就已问到的部分出一份**阶段性报告**(顶部有醒目标注),并以退出码 6 结束;
+- **要不要继续由用户决定**:调高 `budget_cap_usd` 后执行 `aivis run --provider … --model … --run-id <id>` 把同一轮接着跑完(只改预算不算换基线);在交互终端里会直接问"要不要调高上限继续"。Skill 里**必须先问用户**,不许替用户决定继续花钱;
+- 多表面运行里一个表面到顶不影响其它表面;但只要有表面的**预估**超上限,整批在开跑前就被拦下(一分钱不花)。
 
 ## 红线提醒(对 Skill 使用者同样生效)
 

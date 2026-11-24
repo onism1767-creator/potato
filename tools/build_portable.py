@@ -54,7 +54,7 @@ _README_ZH = """AI Visibility Easy Tool —— 本地可见度测量工具(便�
 
 【打不开?】
 - 浏览器没自动开:手动打开黑窗里显示的地址(形如 http://127.0.0.1:8765/)。
-- 本工具用的是微软签名的官方 Python(不是自制 exe),所以不会被「智能应用控制」拦。
+- 本工具用的是 python.org 官方发布并签名的 Python(不是自制 exe),所以不会被「智能应用控制」拦。
 """
 
 _README_EN = """AI Visibility Easy Tool — local visibility measurement (portable)
@@ -77,7 +77,7 @@ _README_EN = """AI Visibility Easy Tool — local visibility measurement (portab
 
 [Won't open?]
 - If the browser didn't open, manually visit the address shown in the black window (e.g. http://127.0.0.1:8765/).
-- This tool runs on Microsoft-signed official Python (not a self-built exe),
+- This tool runs on the official, signed Python from python.org (not a self-built exe),
   so Smart App Control will not block it.
 """
 

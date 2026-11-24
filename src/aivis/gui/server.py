@@ -67,7 +67,7 @@ class GuiServer(ThreadingHTTPServer):
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "aivis-gui/0.1"
+    server_version = "aivis-gui/0.3"
 
     @property
     def _gui(self) -> GuiServer:

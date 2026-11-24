@@ -6,7 +6,7 @@
 
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
-[![tests](https://img.shields.io/badge/tests-374%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-470%20passing-brightgreen)](tests/)
 [![runs locally](https://img.shields.io/badge/runs-100%25%20local-success)](#4--bring-your-own-api-key)
 [![cost](https://img.shields.io/badge/author%20fee-%240-success)](#what-it-costs)
 
@@ -48,12 +48,12 @@ The portable build ships an **official, python.org-signed Python** (not a homema
 
 <p align="center"><img src="docs/assets/report-multi-brand.png" alt="Potato HTML report — multi-brand dashboard with ranking and share-of-voice" width="780"></p>
 
-<sub>A single-file, offline HTML report (no external links, no scripts). Above: a $0 mock demo with 5 neutral brands. A live example: <a href="examples/single_brand_report.html">examples/single_brand_report.html</a>.</sub>
+<sub>A single-file, offline HTML report (no external links, no scripts). Above: a $0 mock demo with 5 neutral brands. A sample rendered with the real template from synthetic data (fictional brand, made-up numbers): <a href="examples/single_brand_report.html">examples/single_brand_report.html</a>.</sub>
 
 ### What it measures
 
 - **Mention coverage** — how often an answer names your brand by a clear name.
-- **Citation validity** — share of cited links that are actually reachable.
+- **Citation validity** — share of cited links that are reachable. In the default offline mode this is **assumed, not checked**, and the report says so at the top (see “verified” below).
 - **Owned vs earned citations** — cited from your own domain vs third-party pages (counted **separately**, never blended).
 - **Share of voice** — your share of all mentions across the measured brands.
 - **Stability** — how consistent the result is across repeated rounds.
@@ -64,19 +64,19 @@ The portable build ships an **official, python.org-signed Python** (not a homema
 
 ### How it refuses to fabricate facts (the technical core)
 
-- **Deterministic scoring, no AI judge.** Every counted number comes from fixed rules, not a model's opinion. AI is used only to *draft* questions (which you approve and freeze) and to *narrate* the report — **never to decide the metrics**.
+- **Deterministic scoring, no AI judge.** Every counted number comes from fixed rules, not a model's opinion. AI is used only to *draft* questions (which you approve and freeze) — **never to decide the metrics**. Reports are rendered by fixed templates, not written by a model.
 - **Conservative counting.** Only a clear, unambiguous brand name scores. Abbreviations and ambiguous names are recorded but **not counted** — the tool never rounds up in your favor.
-- **Three evidence tiers — `mentioned → cited → verified` — and only `verified` enters the core score.** "Verified" means Potato actually fetched the cited page and confirmed it is reachable **and really mentions the brand**.
-- **Independent citation check.** Potato re-fetches the third-party pages the AI cited and checks them itself (dead links, mismatches) — it does **not** take the AI's word for them.
-- **Clean room.** Every probe is a fresh call with no history and no personalization; region, language and temperature are pinned — the same question under the same conditions, every time.
+- **Three evidence tiers — `mentioned → cited → verified` — and only `verified` enters the core score.** “Verified” comes in three strengths, and every report states which one it used: by default — and always in the wizard — cited links are **assumed** reachable and no page is fetched (`verified-offline-v1`); `--check head` checks the HTTP status; `--check fetch` fetches each cited page and requires that it is reachable **and really mentions the brand** (`verified-page-v2`, the strongest).
+- **Independent citation check (opt-in).** With `--check fetch` on the command line, Potato re-fetches the pages the AI cited and checks them itself (dead links, pages that never mention the brand) instead of taking the AI's word for them. The default run does not fetch pages.
+- **Clean room.** Every probe is a fresh call with no history and no personalization; region and temperature are pinned wherever the engine accepts them (see the honesty flags below), and the language is fixed by the frozen question text — the same question under the same conditions, every time.
 - **Honest uncertainty.** Every ratio is shown with a Wilson 95% interval. When two brands' intervals overlap, Potato says **"not distinguishable"** instead of inventing a precise ranking.
-- **No leading the witness.** 24 frozen questions (8 discovery / 6 comparison / 6 scenario / 4 brand-defense); the **first 20 never name any brand**, and your own brand is drafted **blind** — the AI is never told which brand is yours.
+- **No leading the witness.** 24 frozen questions (8 discovery / 6 comparison / 6 scenario / 4 brand-defense); the **first 20 never name any brand**, and those 20 are drafted **blind**, in a separate call that is never given your brand. Only the 4 brand-defense questions and the competitor suggestion are told which brand is yours.
 - **We pinned the search tool that actually returns citations.** A newer web-search tool version silently dropped inline citations — we caught it empirically (**0 vs 12** citations) and pinned the version that keeps them.
 - **Injection-safe.** Fetched web pages and AI answers are treated as untrusted data — never fed back to the model as instructions; HTML is sanitized.
 
 ### Regional categories → one national baseline
 
-Some categories are answered differently depending on location. Potato **pins a single region and language** (e.g. US / en-US) and runs every probe clean-room, so a run is one consistent **national-level** view — not a blur of different cities, and not your personalized results. Different regions are measured as **separate strata** and are **never averaged together** into a single misleading number.
+Some categories are answered differently depending on location. Potato **pins a single region** (e.g. US — sent to every engine that accepts a region parameter), asks one frozen question set in one language, and runs every probe clean-room, so a run is one consistent **national-level** view — not a blur of different cities, and not your personalized results. Different regions are measured as **separate strata** and are **never averaged together** into a single misleading number.
 
 ### Five engines, 27 models — compared side by side, never blended
 
@@ -91,13 +91,13 @@ Some categories are answered differently depending on location. Potato **pins a 
 Each engine is its own **measurement surface**: it gets its own report, its own budget cap and its own bill. The comparison page places surfaces **side by side — no combined score, no cross-engine ranking**, because "visible on Gemini" and "visible on Claude" are different facts.
 
 **Honesty flags are shown on every model card and recorded in every run manifest:**
-- *no temperature* — the model rejects sampling parameters (all OpenAI reasoning models; Claude Sonnet 5 / Opus 4.8 / Opus 5 / Fable 5.1), so the clean-room temperature cannot be pinned there;
+- *no temperature* — the model rejects sampling parameters (all OpenAI reasoning models; Claude Sonnet 5 / Opus 4.8 / Opus 5 / Fable 5.1; Perplexity's two presets and its Search API), so the clean-room temperature cannot be pinned there;
 - *no region* — the API has no region parameter (Gemini, Grok);
 - *underlying model changes* — Perplexity's official presets run an OpenAI model that auto-updates and cannot be pinned (the manifest records the actual model each run);
 - *search only* — Perplexity's Search API returns result links with **no generated answer**, so mention metrics do not apply (citation metrics still do);
 - *Perplexity Sonar* (Agent API) answered **without inline citation markers** in our smoke run, so its citation metrics may read 0 while mention metrics work; the presets do carry `[web:n]` markers;
 - *Grok 4.7* likewise answered **without inline citation markers** in our smoke run (2 of 2 calls). xAI then returns only a list of every page the agent browsed (about 50 URLs), which Potato does **not** count as citations — so its citation metrics may read 0 while mention metrics work. Grok 4.20 – 4.6 did cite inline;
-- Grok's only request-side limit (`max_turns`) caps agent turns, not tool calls, and opening a page is billed like a search — so its pre-run estimate is deliberately wide (real smoke calls cost 22–62% of it); the run-time budget cap still stops overspend;
+- Grok's only request-side limit (`max_turns`) caps agent turns, not tool calls, and opening a page is billed like a search — so its pre-run estimate is deliberately wide (real smoke calls cost 22–62% of it); the run-time cap still stops new calls once the real spend reaches it;
 - Gemini returns Google redirect links instead of real URLs; Potato resolves them by reading only the redirect header (no page fetch) so owned / earned attribution still works, and keeps the original link in the raw record.
 
 The engine is **provider-agnostic by design**: every model sits behind one adapter interface, the model catalog lives in one file, and there are no model-specific branches in the pipeline — **you can add an engine by writing one adapter**.
@@ -115,23 +115,26 @@ The engine is **provider-agnostic by design**: every model sits behind one adapt
 ### What it costs
 
 - **The author charges you nothing — ever. Potato is open source (MIT).**
-- A full real check is **hard-capped to a budget you set, per AI** — a lightweight model (Claude Haiku, GPT-6 Luna, Gemini Flash, Sonar) typically lands around **$1–5**, flagship models (Fable 5.1, GPT-6 Astra) cost more. Potato shows the **estimate for every AI you tick and the total** before it starts, and **stops each AI before it can overrun**. That money is AI usage paid to **the provider you chose**, never to the author.
+- A full real check runs under **a budget cap you set, per AI**. Before it starts, Potato shows the **estimate (an upper bound) for every AI you tick and the total**: with the default 72 calls, lightweight models (GPT-6 Luna, Sonar, Gemini Flash, Claude Haiku) estimate at roughly **$2–6** and usually cost less; flagship models (Fable 5.1, GPT-6 Astra) cost more. A model whose estimate exceeds your cap is refused **before anything is spent**.
+- During a run, once an AI's real spend reaches the cap **no new calls are sent**; calls already in flight (up to 4 by default) still finish and are billed. You then get a clearly labelled **partial report**, and **you choose**: raise the cap and continue the same run, or stop there.
+- That money is AI usage paid to **the provider you chose**, never to the author.
 
 ### Security (verifiable, not just a promise)
 
 - Runs **only on your machine** (`127.0.0.1`). There is **no cloud server, and nothing is uploaded.**
 - Your key lives **in memory only**, passed to a local subprocess through an environment variable — **never written to disk, never logged, never placed on a command line.**
-- Each key is sent **only to that provider's own API** — `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.perplexity.ai`, `api.x.ai` (your own accounts) — **never to any author server. Zero telemetry.**
-- Open source and auditable; the report's **"network destinations"** panel shows exactly where the run connected, so you can verify all of the above yourself.
+- Each key is sent **only to that provider's own API** — `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, `api.perplexity.ai`, `api.x.ai` (your own accounts) — **never to any author server. Zero telemetry.** The endpoints are pinned in code: a relay or proxy address set in your environment (`*_BASE_URL`) is ignored.
+- Open source and auditable; the report's **"network destinations"** panel lists which provider API was called and how many cited domains were checked. (For Gemini, Potato also sends header-only requests to Google's redirect host to turn its redirect links into real URLs — no key, no page content.)
 
 ---
 
 ### For developers & advanced use
 
 - **Measure your own brand from the CLI / Claude Skill** (SETUP mode): `aivis init` scaffolds a focal config → `aivis validate` checks it → `aivis estimate` prices a run → `aivis run` executes it. See [SKILL.md](SKILL.md).
-- **Multi-engine from the CLI:** `aivis models` lists all 30 surfaces with flags and per-run estimates; `aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` runs each surface, writes one report per surface plus `analysis/compare/<id>/comparison.html`, and prints the bill. Within a surface, questions are asked up to 4 at a time (`--concurrency N`; `1` = strictly one by one) — same calls, same results, just less waiting; if a budget cap is hit, up to N−1 calls already in flight still complete and are billed. Keys are read only from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` / `XAI_API_KEY`.
+- **Multi-engine from the CLI:** `aivis models` lists all 30 catalog entries (27 real models + 3 mock) with flags and per-run estimates; `aivis run --surfaces openai:gpt-6-luna,gemini:gemini-3.8-flash,perplexity:search --yes` runs each surface, writes one report per surface plus `analysis/compare/<id>/comparison.html`, and prints the bill. Within a surface, questions are asked up to 4 at a time (`--concurrency N`; `1` = strictly one by one) — same calls, same results, just less waiting; if a budget cap is hit, up to N−1 calls already in flight still complete and are billed, the run writes a partial report and exits with code 6, and `aivis run --provider … --model … --run-id <id>` resumes it once you raise `budget_cap_usd`. Keys are read only from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `PERPLEXITY_API_KEY` / `XAI_API_KEY`.
+- **Other flags:** `--sequential` (adaptive sampling — stop asking a question once its answers agree; default is a fixed 3 rounds), `--check offline|head|fetch` (how cited links are verified; default `offline`), `--run-id` (resume a run), `--data-dir`, `aivis gui --port N --no-open`.
 - **Project map:** [SKILL.md](SKILL.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CLAUDE.md](CLAUDE.md) (behavioral red lines) · `src/aivis/contracts/` (data contracts) · `configs/demo/` (neutral 5-brand demo).
-- **Quality bar:** contracts frozen, three-layer storage (raw is append-only), deterministic pure scoring, golden tests, CI guards (ruff / mypy / import-linter / gitleaks / pytest) — **254 tests green.**
+- **Quality bar:** contracts frozen, three-layer storage (raw is append-only), deterministic pure scoring, golden tests, CI guards (ruff / mypy / import-linter / gitleaks / pytest) — **470 tests green.**
 
 ## License
 

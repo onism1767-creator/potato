@@ -1,0 +1,4 @@
+# 已核实的误报(不是密钥):gitleaks 的 generic-api-key 规则把 ARCHITECTURE.md 里的模型名
+# `perplexity/sonar`(紧跟在 "API:" 后面)当成了密钥。2026-11-19 的 CI 因此红过一次。
+# 只忽略这一条指纹(提交 + 文件 + 规则 + 行号),扫描器其余规则不变。
+5ac9449f54292bcf0d0da72ad14576efd4b0d79e:ARCHITECTURE.md:generic-api-key:153

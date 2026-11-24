@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aivis"
-version = "0.2.0"
+version = "0.3.0"
 description = "AI web-search 可见度(代理测量;Claude / OpenAI / Gemini / Perplexity / Grok)—— 可复现的提及/引用测量框架"
 requires-python = ">=3.12"
 # 🟥 CLAUDE.md §3:不经人确认禁止新增第三方依赖。

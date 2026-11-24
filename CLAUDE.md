@@ -76,7 +76,7 @@ agent 最常见的破坏之一是"顺手"引入重型抽象。本仓库：
 ## 4. Provider 适配器规则（🟥 多引擎在架构层解决，不在调用处 if-else）
 
 1. 所有引擎都藏在 `contracts/adapter.py` 的 `ProviderAdapter` Protocol 后面：输入（问题/区域/语言/温度/`max_uses` 等）→ 标准化输出 `RawResponse`（回答正文、引用列表、搜索次数、模型名+版本、`tool_path`、错误码）。
-2. **v0.1 只有 `mock` 与 `anthropic`；v0.2（2026-09）起接入 `openai` / `gemini` / `perplexity` 四家真引擎。** 模型目录（纯数据、不 import SDK）在 `providers/catalog.py`，唯一工厂在 `providers/registry.py`——**这是全仓库唯一允许按引擎名分支的地方**。接一个新引擎 = 新适配器模块 + 目录条目 + 离线替身测试，pipeline 零改动。
+2. **v0.1 只有 `mock` 与 `anthropic`；v0.2（2026-09）起接入 `openai` / `gemini` / `perplexity` 四家真引擎；2026-11 加第五家 `grok`（xAI）。** 模型目录（纯数据、不 import SDK）在 `providers/catalog.py`，唯一工厂在 `providers/registry.py`——**这是全仓库唯一允许按引擎名分支的地方**。接一个新引擎 = 新适配器模块 + 目录条目 + 离线替身测试，pipeline 零改动。
 3. **禁止在 pipeline / GUI / CLI 里用 `if provider == "anthropic"` 这类分支** 处理引擎差异；差异必须封装在各自适配器内，选择一律经 registry。
 4. Anthropic 适配器要点（实现时对照官方文档复核）：调用 web_search 工具（经典版 `web_search_20250305`，见 ARCHITECTURE §9）；引用始终开启；工具报错以 **HTTP 200 + error block** 返回，需**捕获并记为失败**（不是空回答）；`refusal` 停止原因记为失败且**不做 fallback**；每次记录精确模型名 + 日期。
 5. **每个表面的诚实标记必须在目录里声明并进清单**：`supports_temperature`（拒绝采样参数的模型不传温度）/ `supports_region`（无区域参数的 API）/ `pinned`（底层模型会自动更新的预设档）/ `surface_kind`（`search_only` = 无回答文本，提及类指标不适用）。probe 把它们写进 `RunManifest`（`temperature_applied` / `region_applied` / `surface_kind`），报告如实呈现；不许替引擎"补齐"它做不到的事。
@@ -117,7 +117,7 @@ agent 最常见的破坏之一是"顺手"引入重型抽象。本仓库：
 ## 8. 目录结构（🟧 约定，新文件按此归位）
 
 ```
-ai-visibility/
+potato/                # 仓库根（产品名 Potato；Python 包与 CLI 命令叫 aivis）
   CLAUDE.md            # 本文件
   ARCHITECTURE.md      # 为什么这么分层（决策记录）
   SKILL.md             # Claude Skill 入口（薄；SETUP / MONITORING 两模式 + 成本闸门）
@@ -126,20 +126,29 @@ ai-visibility/
   .pre-commit-config.yaml   # 本地提交时的检查员（§10.5）
   .github/workflows/ci.yml  # 推送/PR 时的检查员（§10.5）
   src/aivis/
-    contracts/         # 🟥 载重墙：records.py / adapter.py / config.py（先写、冻结）
+    contracts/         # 🟥 载重墙：records.py / adapter.py / config.py / checker.py（先写、冻结）
     providers/         # catalog.py（模型目录，纯数据）/ registry.py（唯一工厂）/ mock.py /
-                       # anthropic.py / openai.py / gemini.py / perplexity.py / grok.py（每家一个适配器）
-    pipeline/          # probe.py / extract.py(纯) / verify.py / score.py(纯) / report.py /
+                       # anthropic.py / openai.py / gemini.py / perplexity.py / grok.py（每家一个适配器）/
+                       # drafter.py（SETUP 用的 AI 起草，不进测量轨）
+    pipeline/          # probe.py / extract.py(纯) / verify.py / score.py(纯) /
+                       # report.py + report_html.py + report_assets.py（单表面报告，纯渲染）/
                        # report_compare.py（多表面并列对比，纯渲染）
     stats/             # wilson.py / bootstrap.py / sequential.py（全纯）
     storage/           # raw(只追加) / evidence / analysis 三个边界
+    matching.py        # 品牌名匹配的唯一口径（纯；extract / verify / configcheck 共用）
+    configio.py / configcheck.py(纯) / templater.py(纯) / scaffold.py   # 配置读取 / 质检 / 模板起草 / init 脚手架
+    gui/               # 本地向导：server.py（只听 127.0.0.1）/ api.py / runner.py / static/index.html
     cli.py             # 🟧 薄：子命令转发到 pipeline，不写业务逻辑
+    app.py             # `python -m aivis` 入口：无参数起向导，有参数走 CLI（便携包用）
   tests/
-    fixtures/          # 黄金原始 JSONL / 黄金页面 / 黄金期望指标
+    fixtures/          # 黄金期望：golden_e2e_bundle.json
   configs/demo/        # 5 品牌中立 demo：questions.yml / brands.yml
+  examples/            # 用真实模板渲染的报告样张（合成数据）
+  tools/               # build_portable.py（便携 zip）/ regen_golden.py / regen_examples.py
+  docs/                # 设计记录与审计指南
 ```
 
-CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `models` / `estimate`；全局 flag `--provider`（默认 mock）、`--model`（精确 id）、`--tier`（档位便利选项）、`--surfaces`（多表面 provider:model 列表，逐个跑 + 并列对比 + 账单）、`--concurrency`（同一表面内同时在途的调用数上限，默认 4；1 = 逐个串行）。
+CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `models` / `estimate` / `validate` / `init` / `gui`；全局 flag `--provider`（默认 mock）、`--model`（精确 id）、`--tier`（档位便利选项）、`--surfaces`（多表面 provider:model 列表，逐个跑 + 并列对比 + 账单）、`--concurrency`（同一表面内同时在途的调用数上限，默认 4；1 = 逐个串行）。
 **🟥 CLI 与 SKILL.md 都薄如纸**：只负责编排，所有逻辑在可被 import 的库里（否则逻辑漏进测不到的地方）。
 
 ---
@@ -187,11 +196,13 @@ CLI 子命令：`probe` / `extract` / `verify` / `score` / `report` / `run` / `m
 
 ## 11. 版本范围（🟧 会随产品决策更新；当前锁定如下）
 
-**v0.2 已做（2026-09，多引擎）**：四家真引擎适配器（Claude 6 / OpenAI 6 / Gemini 5 / Perplexity 4，含 Search API 纯搜索表面）· 模型目录 + 注册表 · `--model` / `--surfaces` 多表面串跑 · 并列对比报告（只并列不混总分）· 账单（清单记真实花费）· 清单诚实字段（温度/区域是否生效、表面类型）· GUI 多选引擎 + 每家密钥框 + 合计预估 · `models` 子命令。**未做**：跨引擎并行跑（串行）· 整批总预算上限（仍是每表面各自受限）· Gemini Interactions API（仍用 generateContent）。
+**v0.2 已做（2026-09，多引擎）**：四家真引擎适配器（Claude 6 / OpenAI 6 / Gemini 5 / Perplexity 4，含 Search API 纯搜索表面）· 模型目录 + 注册表 · `--model` / `--surfaces` 多表面串跑 · 并列对比报告（只并列不混总分）· 账单（清单记真实花费）· 清单诚实字段（温度/区域是否生效、表面类型）· GUI 多选引擎 + 每家密钥框 + 合计预估 · `models` 子命令。**未做**：跨引擎并行跑（表面之间仍串行；表面内已有上限并发，见 ARCHITECTURE §12）· 整批总预算上限（仍是每表面各自受限）· Gemini Interactions API（仍用 generateContent）。
 
-**v0.2 之后的增量（2026-11）**：第五家 Grok（xAI，6 个表面，共 30 个表面）——复用 `openai` SDK 指向 `api.x.ai`，未加依赖；只开 `web_search`（不开 `x_search`）；无区域参数；零宽"浏览来源"标注不算引用；Grok 走流式接收（超时 = 多久收不到数据）。详见 ARCHITECTURE §11。探测支持有上限的并发（不同的题同时问、同一题一次只发一个调用、原始层仍只由 probe 主线程写；表面之间仍串行），详见 ARCHITECTURE §12。
+**v0.2 之后的增量（2026-11）**：第五家 Grok（xAI，6 个表面；至此共 27 个真实表面，目录连同 3 个 mock 共 30 项）——复用 `openai` SDK 指向 `api.x.ai`，未加依赖；只开 `web_search`（不开 `x_search`）；无区域参数；零宽"浏览来源"标注不算引用；Grok 走流式接收（超时 = 多久收不到数据）。详见 ARCHITECTURE §11。探测支持有上限的并发（不同的题同时问、同一题一次只发一个调用、原始层仍只由 probe 主线程写；表面之间仍串行），详见 ARCHITECTURE §12。
 
-**v0.1 要做（IN，已完成）**：`contracts/` 全部冻结类型；`mock` 适配器；三类数据存储（raw 只追加，JSONL+SQLite 即可）；`probe→extract→verify→score→report` 在 mock 上端到端跑通，产出最简真实的 **Markdown + CSV** 报告；`extract`（owned/earned + 保守计数）与 `score`（六指标 + Wilson 区间）真实实现 + 黄金测试；`verify` 最小版（URL 规范化 + 可达性 + 来源分类 + 三档标签，**不含真页面抓取摘录**）；薄 CLI；`configs/demo/` 5 品牌中立 demo；CI 绿。
+**v0.3（2026-11-23，终审修正）**：预算到顶不再丢数据——出带标注的阶段性报告，并**由用户决定**是否调高上限用同一 run_id 续跑（`budget_cap_usd` 只决定花到多少停，不算测量基线；配置锁比对 `FrozenConfig.baseline_fingerprint()`）· 空回答五家统一记失败 · 各家端点钉死官方地址（环境里的中转站地址不生效）· Gemini 建客户端加锁并设超时 · 原始层容忍半截行 · 探测被打断时在途调用照常落盘 · 序贯采样只把成功回答当观测 · 向导/核验加固。决策与**已知待办**见 ARCHITECTURE §13。
+
+**v0.1 要做（IN，已完成）**：`contracts/` 全部冻结类型；`mock` 适配器；三类数据存储（raw 只追加；实际落地为 JSONL + JSON 文件，未用 SQLite）；`probe→extract→verify→score→report` 在 mock 上端到端跑通，产出最简真实的 **Markdown + CSV** 报告；`extract`（owned/earned + 保守计数）与 `score`（六指标 + Wilson 区间）真实实现 + 黄金测试；`verify` 最小版（URL 规范化 + 可达性 + 来源分类 + 三档标签，**不含真页面抓取摘录**）；薄 CLI；`configs/demo/` 5 品牌中立 demo；CI 绿。
 
 **仍未做（OUT）**：driver tags / 行动层 · 情感层 · 运营轨 · 任何 SaaS 件（workspace/RBAC/告警/审计）。（v0.1 的 OUT 项里，真 Anthropic 适配器、序贯采样、verify 真页面抓取、HTML 报告、bootstrap 区间均已在后续版本落地。）
 

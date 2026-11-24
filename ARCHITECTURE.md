@@ -3,20 +3,23 @@
 > 配套阅读:行为约束见 `CLAUDE.md`。
 > 本文记录**第一版地基的架构决策与口径定义**,改任何一条 = 改契约级决策,先问人。
 
-## 1. 三层数据 + 菱形流水线
+## 1. 三层数据 + 流水线
 
 数据分三层、单向流动(CLAUDE.md §1):① 原始观测(append-only)→ ② 核验证据(可重算)→ ③ 分析(完全派生)。
 
-流水线的**真实形状是菱形,不是直线**:
+流水线是直线,score 同时读两路输入:
 
 ```
-            ┌─ extract(纯)──┐
-probe → ①raw                ├─→ score(纯)→ report(render 纯 / write IO)
-            └─ verify(IO)───┘
+probe → ①raw → extract(纯)→ verify(IO)→ ②evidence ─┐
+                    └──────────────────────────────────┴→ score(纯)→ report(render 纯 / write IO)
 ```
 
-**决策**:verify 直接读原始层的引用 URL,不消费 extract 的产物。
-**理由**:② 严格"由①派生",不隐式依赖③的半成品;verify 网络抖动重跑不污染 extract;两段可并行。
+**实际做法**:verify 读的是 extract 产出的引用清单(规范化后的 URL + owned/earned 归属),只负责
+联网核验并写证据层;score 同时读 extract 的产物和证据层。
+**理由**:URL 规范化与归属判定只有一份逻辑(都在 extract),verify 不重复实现;verify 网络抖动
+重跑只追加证据层,不动 extract 的产物。
+**更正记录(2026-11-23 终审)**:本节原先写的是"菱形——verify 直接读原始层、不消费 extract 的产物",
+与代码不符(`verify(extraction, cfg, …)` 的入参就是 extract 的产物),已按代码更正。
 
 ## 2. 三档判定(tier)放在 score,不在 verify
 
@@ -102,9 +105,9 @@ v1 的两个实现(OfflineChecker / HttpHeadChecker)都不读网页正文,无 pr
 | mention_coverage | 含该品牌**清晰名**提及的回答占比(保守计数) | Wilson |
 | owned_citation_rate | 含 ≥1 条 **verified owned** 引用的回答占比 | Wilson |
 | earned_citation_rate | 含 ≥1 条 **verified earned** 引用的回答占比 | Wilson |
-| prominence | 清晰提及的 `1 − 首位/全长` 均值 | **range**(min–max;bootstrap 后期) |
+| prominence | 清晰提及的 `1 − 首位/全长` 均值 | **bootstrap 95% 区间**(固定种子、2000 次重采样;小样本不假精度) |
 | mention_sov / citation_sov | 品牌(提及/verified)回答数 ÷ 全品牌总数 | Wilson;品牌数 <2 时整体移除 |
-| stability | 同一问题跨轮"清晰提及结果一致"的问题占比 | 点值(Jaccard 完整版后期) |
+| stability | 同一问题跨轮"清晰提及结果一致"的问题占比 | Wilson(稳定的问题数 ÷ 问题数) |
 
 **保守计数的记录约定**(`BrandMention`):清晰命中 `mentioned=True, counted=True`;歧义命中 `mentioned=True, counted=False`(进 extra data,健康灯歧义比例的分子);未提及 `mentioned=False, counted=True`(对"缺席"的有效观测,进覆盖率分母)。
 
@@ -124,7 +127,7 @@ v1 的两个实现(OfflineChecker / HttpHeadChecker)都不读网页正文,无 pr
 - **黄金样本工作流**:`tests/fixtures/golden_e2e_bundle.json` 冻结整个 ScoreBundle;有意改口径时运行 `tools/regen_golden.py` 再生成,人工检查 diff 并在 PR 说明(CLAUDE.md §10)。
 - **Windows 注意**:`lint-imports.exe` 可能被应用控制策略拦截,本地用 `python -c "from importlinter.cli import lint_imports; ..."`(pre-commit 已如此配置);CI(Linux)为权威。
 
-## 10. v0.2 多引擎决策(2026-09,四家 24 个表面)
+## 10. v0.2 多引擎决策(2026-09,四家 21 个真实表面;目录另含 3 个 mock)
 
 **目录 + 注册表**:`providers/catalog.py` 是纯数据的模型目录(不 import 任何 SDK),`providers/registry.py` 是
 provider:model → 适配器的唯一工厂,也是全仓库唯一按引擎名分支的地方;SDK 只在对应分支里惰性 import
@@ -141,14 +144,14 @@ provider:model → 适配器的唯一工厂,也是全仓库唯一按引擎名分
 **各家的坑与定论**(2026-09-22 对照官方文档核实):
 - **Claude**:新三代(Sonnet 5 / Opus 5 / Fable 5.1)不接受 temperature,思考常开故 max_tokens 8192;
   `refusal` 停止原因记为失败、**不做服务端 fallback**(换模型作答会让"此表面"失真);经典版
-  `web_search_20250305` 在 5.x 上是否可用待真机验证(不可用会显式报错,不静默)。
+  `web_search_20250305` 在 5.x 上可用(2026-09 真机冒烟已确认,见本节末尾的冒烟结论)。
 - **OpenAI**:Responses API + `web_search`;引用 = `url_citation` 标注(起止位置 → cited_text);
   `web_search_call` 项计搜索次数(只有 action=search 算搜索,但所有项都按工具费保守计价);
   `max_tool_calls` = max_uses;`store=False`;推理模型一律不传 temperature;GPT-5.6 系列已从官方总览页
   下架(status=legacy)。
 - **Gemini**:grounding 引用 = supports → chunks(未被 support 引用的 chunk 只是搜索结果,不算引用);
   🟥 chunk 的 uri 是 Google 跳转链接,适配器只读跳转头(HEAD、不跟随出 Google 域、不抓正文、最多 3 跳)
-  解析真实网址,原链接留在 raw_json.redirects;无 max_uses 类参数(估算按每调用 5 次搜索取上界,
+  解析真实网址,原链接留在 raw_json.redirects;无 max_uses 类参数(估算按每调用 4 次搜索计,
   grounding $14/千次按全额计);无区域参数(region_applied=False);SAFETY 等 finish_reason → refusal。
 - **Perplexity**:Sonar 聊天接口 2026-09-27 停服,走 Agent API:`perplexity/sonar` 显式 model 可钉;
   sonar-pro / sonar-reasoning-pro 按官方迁移表映射为预设 low / medium(底层 OpenAI 模型自动更新,
@@ -178,7 +181,7 @@ Gemini 已按 2026-09-25 真机校准(见下);Perplexity 以 API 自报 cost 为
 瞬时错误(限速 / 超时 / 5xx)记成 finished_ok=False 的 RawResponse 继续跑。多表面运行开跑前先查齐各家
 密钥环境变量,缺则不发任何调用直接退出。
 
-## 11. Grok(xAI)接入决策(2026-11-19,第五家,6 个表面 → 共 30 个表面)
+## 11. Grok(xAI)接入决策(2026-11-19,第五家,6 个表面 → 共 27 个真实表面,目录连 mock 共 30 项)
 
 **不加依赖**:xAI 的 Responses API 与 OpenAI 同形,官方文档示例就用 `openai` SDK 指向 `api.x.ai/v1`。
 `providers/grok.py` 复用白名单里已有的 `openai` SDK,只换主机与密钥(`XAI_API_KEY`);建好客户端后把
@@ -235,7 +238,7 @@ temperature 可传且被回显 → `supports_temperature=True`。
   有 1 次 232 秒(中位 38 秒、90 分位 51 秒;原因查不出——SDK 自动重试不留记录);
 - `max_uses=None` 时不传 `max_turns`,估算却按 1 轮(各适配器同一约定);
   估算未计 ≥20 万 token 翻倍(`max_uses ≥ 5` 时估算自身的输入已到 20.2 万);
-- OpenAI 适配器同样会把"completed 但无回答文本 / 拒答"记成成功的空回答。
+- ~~OpenAI 适配器同样会把"completed 但无回答文本"记成成功的空回答~~ —— 已在 2026-11-23 解决:空回答五家统一记失败(§13)。
 
 **流式接收(2026-11-19,同日接入;真机 2 次调用验证,共约 $0.10):**
 
@@ -280,6 +283,90 @@ Inspect AI `max_connections`、OpenAI Cookbook 的并行脚本)。
 - 提速幅度只做了离线测量(每次调用固定耗时的假引擎:4 路 ×3.9、8 路 ×7.7);真实引擎上
   还受各家限速制约,**没有做真机并发测试**。被限速时表现为失败数变多(Grok 不自动重试,
   其它家 SDK 会重试 2 次),调小 `--concurrency` 即可;
-- 适配器实例被多个线程同时调用:各家 SDK 客户端基于 httpx,按文档是线程安全的;惰性建客户端
-  有一个良性竞争(可能多建一个,后者覆盖前者),未加锁;
+- 适配器实例被多个线程同时调用:各家 SDK 客户端基于 httpx,按文档是线程安全的。
+  **更正(2026-11-23)**:这里原先把"惰性建客户端可能多建一个、后者覆盖前者"写成良性竞争、未加锁。
+  对 Gemini 它不是良性的——被覆盖的 Client 一被回收,SDK 就关掉仍在使用的连接池,首批调用即整批中止
+  (终审用真 SDK + 本机假服务器在 Windows 上复现)。现在五家建客户端都加了锁,只建一个;
 - 表面之间仍是串行(`--surfaces` 逐个跑);并发数没有记进 RunManifest(那要改契约,另议)。
+
+## 13. 终审修正与已知待办(2026-11-23,v0.3)
+
+发布前做了一次全项目独立代码审查(内核与探测 / 五家适配器 / 向导·命令行·核验安全 / 文档与打包四路,
+各自通读源码并离线复现)。没有发现密钥泄露或 XSS;查出的是"花了钱的数据会丢""默认并发下跑不起来"
+"文案与实际不符"三类。本节记下**改了什么、为什么**,以及**查出但这次没改的**。
+
+### 13.1 预算到顶:看得到已跑的部分,继续与否由用户决定(用户拍板)
+
+- **原问题**:运行中花到 `budget_cap_usd` 会停下并提示"调高预算后续跑",但预算被算进了配置锁的指纹,
+  调高预算就被 `RunLockError` 拒绝;这轮又没有清单,报告也出不了——已花钱的数据两头都用不上。
+- **决策**:`budget_cap_usd` 只决定"花到多少停",不改变问什么、怎么问,**不算测量基线**。
+  契约新增 `FrozenConfig.baseline_fingerprint()`(与 `fingerprint()` 相同但不含预算),配置锁比对它;
+  旧锁存的是全量指纹,预算没变时仍然认得。清单里的 `config_fingerprint` 仍是全量指纹(如实记下跑完时的预算)。
+  除预算外任何字段改动仍然换基线、仍被拒绝。
+- **阶段性报告**:到顶时 probe 抛 `BudgetStop`(带 run_id / 已完成数 / 花费)。`run` 命令用
+  `snapshot_manifest()` 现算一份清单——**不写入原始层**(原始层仍只在整轮跑完时由 probe 写一次清单)——
+  就已保存的数据走完 extract → verify → score → report。`score(partial=True)` 只加标记
+  `partial-run:budget-cap`、把健康灯压到至少为黄,**不改任何指标数字**;报告顶部有醒目横幅:
+  只覆盖已问到的题,排在后面的题可能一次都没问,不能当作完整基线。
+- **谁来决定继续**:永远是用户。交互终端里直接问(输入更高的上限 = 接着跑,回车 = 停);非交互时打印
+  `BUDGET_STOP <表面> <run_id> <已完成>/<总数> <花费>` 机器行并以退出码 6 结束;向导里显示
+  "打开阶段性报告"和"调高上限并接着跑"(沿用磁盘上已冻结的配置、只改预算)。
+- **多表面**:每个表面各自受限,一个表面到顶不再连累其它表面。但只要有表面的**预估**超上限,
+  整批在开跑前就被拦下——以前是前面的表面花完钱、轮到它才中止,既没对比页也没账单。
+
+### 13.2 其它修正
+
+- **探测**:主线程被打断(Ctrl+C / 回调或落盘抛错)时,在途调用的结果照常落盘记账后再抛原异常
+  (以前丢弃,续跑要再付一次钱);序贯采样只把**成功**的回答当观测(以前失败的空回答被当成"谁都没提到":
+  全失败在 min_runs 就判稳定,一次瞬时失败会逼着问到上限);配置锁改到成本闸门通过后才写。
+- **原始层 / 证据层**:写到一半被杀留下的半截行,读取时跳过并告警,追加前先补换行隔开
+  (以前一行残渣让整个数据目录都读不出来)。仍然只追加、不改写。
+- **空回答五家统一记失败**(用户确认按 bug 修):没有回答正文不是一次"所有品牌都没被提到"的观测。
+  以前只有 Grok 记失败,其余四家记成功,既压低覆盖率、又让并列对比的失败率不可比。花费照记。
+  本机留存的 79 条真实回答里没有出现过空回答,这是用假响应复现的潜在问题。
+- **解析兜底**:四家老适配器在解析阶段出异常时原样留底、记 `parse_error`、花费照记(与 Grok 同做法)。
+- **端点钉死**:五家客户端都显式指向官方地址,环境里的 `*_BASE_URL`(中转站)不再能把密钥带走;
+  Gemini 显式使用 `GEMINI_API_KEY`。钉的地址由测试对照各家 SDK 的默认值。
+- **Gemini**:建客户端加锁(见 §12 的更正);设 10 分钟超时(SDK 默认不设,连接被掐掉后调用永不返回);
+  传输层错误记为失败而不是崩掉整批。
+- **抽取 / 打分 / 报告**:畸形被引 URL 不再让 extract 崩溃;配置里的域名容忍整条网址;
+  纯搜索表面不再因提及覆盖全为 0 被判红;HTML 报告在排名无法区分时不再写"第一名 / 领先几个点",
+  离线核验时明说可达性是假设值,序贯采样不再写成"固定 N 轮",删掉写死的"Anywhere else: 0"。
+- **向导**:意外异常回固定文案的 500(以前直接断开连接,页面一直卡住);Windows 上不再允许两个实例
+  并绑同一端口;真实模式的估算按钮不再回 mock 的 $0;`gui/api` 不再按引擎名分支(§4.3)。
+- **核验(仅 --check head/fetch)**:`localhost.`、十进制/八进制/十六进制 IP 写法不再能绕过内网拦截;
+  HTML 解析与正文读取都加了总时限;未知编码回退 utf-8。
+
+### 13.3 已知待办(审查查出、这次没有改)
+
+按"会不会让用户吃亏"排序。前三条需要改契约或改口径,要先由人拍板。
+
+1. **配置契约没有收紧**:两道题 id 重复或两个品牌重名不报错(会重复付费、漏问、份额算错);
+   键名拼错(如 `max_use`)被静默忽略,成本估算随之失准。修法是给 `FrozenConfig` 加唯一性校验和
+   `extra="forbid"`——改契约,未拍板。
+2. **开跑前的估算不是严格上界**:Claude 估输出 2000 token 而适配器允许 4096/8192;Gemini 按每次调用
+   4 次搜索 + 4000 输出估,而搜索次数封不了顶。对照真机冒烟,余量只有 2%~10%。有运行中上限兜底,
+   钱不会失控,但运行可能中途到顶(现在会出阶段性报告并可续跑)。把估算调高会让更多模型在默认上限下
+   被开跑前拦下,连带改文档里的金额,未动。
+3. **品牌名匹配对排版字符敏感**:名字写直引号 `Arc'teryx`、文本是弯引号 `Arc’teryx` 时不命中
+   (不同引擎用弯引号的比例不同,带撇号品牌的漏计会随引擎而变);词边界只认 ASCII,`Citro` 会命中
+   `Citroën`。修它等于改提及口径,要同步更新黄金样本,未动。
+4. **score / extract 不核对传入配置与清单的指纹**:探测后改了 brands.yml 再单独重跑
+   `aivis score --run-id X`,结果按新配置算、却标着旧版本号。`aivis run` 一条龙和向导不受影响。
+5. **向导永远是离线核验**(不抓被引网页):界面和报告现在都如实写明"已核实是假设值"。
+   要不要让向导支持真抓取是产品决策(会明显变慢)。
+6. **核验的内网拦截不做 DNS 解析**:一个 A 记录指向内网地址的普通域名、或 DNS rebinding 拦不住。
+   只影响 `--check head/fetch`,且攻击者拿不到回显。
+7. **证据缓存不看品牌集**:page-fetch 口径下,7 天内新增的品牌在已缓存的页面上不会被算作 verified,
+   需要 `verify --refresh`。
+8. **多表面运行中途遇到不可恢复错误**(如第二家密钥错):整批以非零退出,已完成表面的报告都在
+   (向导里也能打开),但没有对比页和账单。
+9. `aivis init` 生成的"待填"占位题能通过 `validate`,`run` 也不拦,可能被直接拿去付费提问。
+10. 三处需要用真机记录核对的疑点:Grok 流里官方形状的 error 事件被记成"超时"(原因丢失);
+    Claude 的 `max_uses_exceeded` 错误块让整条回答记失败是否过严;Perplexity 多个 `search_results`
+    若各自从 1 编号,`[web:n]` 可能映射到错的网址。
+11. 并发数没有记进 RunManifest;`n_runs=1` 时稳定性恒为 1.0(测试钉住的有意口径)。
+12. 本地 pre-commit 的 gitleaks(v8.21.2)与 CI 用的版本没有对齐——本地过不代表 CI 过。
+    已知的那条误报已加进 `.gitleaksignore`。
+13. `configcheck.Violation`、`templater.Segment` 等跨模块传递的冻结 dataclass 定义在 `contracts/` 之外,
+    按 CLAUDE.md §2 的字面算越线(它们是带类型的冻结对象,不是临时 dict)。

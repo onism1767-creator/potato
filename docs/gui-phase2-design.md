@@ -3,7 +3,7 @@
 > 配套 [distribution-options-review.md](distribution-options-review.md)(四阶段路线 · Phase 2 是本文)、
 > [setup-flow-spec.md](setup-flow-spec.md)(SKILL 对话式 7 阶段,本 GUI 是它的可视化版)、
 > [question-drafting-principles.md](question-drafting-principles.md)(起草规则书,起草器照此实现)。
-> 状态:设计已定(2026-06-16 用户拍板),待实现。
+> 状态:**已实现**(2026-06 落地,之后多次迭代)。本文是当时的设计记录,细节(只连 Anthropic、暖橙配色、三档等)已被后续版本取代,现状以 README 与代码为准。
 
 ---
 

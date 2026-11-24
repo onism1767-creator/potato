@@ -2,7 +2,7 @@
 
 > 配套 [setup-mode-design.md](setup-mode-design.md)(为什么)与 [question-drafting-principles.md](question-drafting-principles.md)(每题起草原则)。
 > 本文是**第 2 步的实现规格**:把"AI 盲起草 → 机器质检 → 用户拍板 → 冻结"串成可照着走的对话流程。
-> 状态:设计已定(2026-06-15 用户拍板 D1–D4),待实现。
+> 状态:**已实现**(2026-06 落地)。本文是当时的设计记录,现状以 SKILL.md 与代码为准。
 
 ---
 

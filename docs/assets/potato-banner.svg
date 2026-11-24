@@ -31,7 +31,7 @@
   <text x="400" y="182" font-size="108" font-weight="800" fill="#2C3327" letter-spacing="-2">Potato</text>
   <rect x="404" y="198" width="252" height="8" rx="4" fill="url(#accentGrad)"/>
   <text x="404" y="250" font-size="38" font-weight="600" fill="#4E9A06">Easy AI visibility check</text>
-  <text x="404" y="290" font-size="22" font-weight="400" fill="#5C6555">How often does Claude's web search mention &amp; cite a brand?</text>
+  <text x="404" y="290" font-size="22" font-weight="400" fill="#5C6555">How often do AI web-search answers mention &amp; cite a brand?</text>
 
   <rect x="404" y="310" width="150" height="34" rx="16" fill="#EEF7E2" stroke="#D9E4CF"/>
   <text x="479" y="333" font-size="18" font-weight="600" fill="#3C6E0F" text-anchor="middle">Deterministic</text>

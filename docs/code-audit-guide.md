@@ -6,7 +6,7 @@
 > ③ 给出**常见修改的操作手册**(改哪里、什么顺序、动哪些测试、护栏怎么接住你);
 > ④ **诚实**列出真实的可修改性痛点 + 改进建议(§9,不回避)。
 > **配套**:架构决策见 [ARCHITECTURE.md](../ARCHITECTURE.md);行为红线见 [CLAUDE.md](../CLAUDE.md)。
-> 截至:180 测试绿,五检查员(ruff/mypy/import-linter/gitleaks/pytest)全过。
+> 截至 2026-11-23:470 测试绿,五检查员(ruff/mypy/import-linter/gitleaks/pytest)全过。
 
 ---
 
@@ -15,7 +15,7 @@
 这是个**有意的设计取舍**,不是疏漏:
 
 - 本项目是 **可复现的代理测量框架**,护城河是**测量诚实 + 可审计**。重型 Web/ORM/插件框架会带来**魔法与间接层**(依赖注入容器、元类、运行时反射、约定大于配置),它们让"这个数字怎么来的"更难追溯——**与本项目的核心价值冲突**。CLAUDE.md §3 因此明令"反过度工程、不经确认禁止新增依赖"。
-- 取而代之,本项目用一套**轻量但严格的分层架构**,并用 **import-linter 在 CI 里把层级边界焊死**(违规即红、不许合并)。运行时只有 **3 个第三方包**(pydantic / PyYAML / anthropic)。
+- 取而代之,本项目用一套**轻量但严格的分层架构**,并用 **import-linter 在 CI 里把层级边界焊死**(违规即红、不许合并)。运行时只有 **6 个第三方包**(pydantic / PyYAML / anthropic)。
 - **所以可修改性的真相是**:这里没有"框架脚手架"帮你自动接线,但有**强类型契约 + 边界检查 + 黄金测试**组成的安全网——**改错会立刻、响亮地失败**,你可以放心重构。这对测量工具是比"框架魔法"更合适的可修改性(见 §6、§9)。
 
 > 一句话:本项目优化的是 **"安全地改"**(改错被工具当场拦下),不是 **"快速堆功能"**(靠框架自动接线)。
@@ -24,7 +24,7 @@
 
 ## 1. 全代码地图(按层 + 行数 + 何时动它)
 
-`src/aivis/` 共 ~3900 行,17 个测试文件 ~2660 行。**文件小、单一职责**是有意的。
+`src/aivis/` 共约 8500 行,40 个测试文件约 7300 行(2026-11-23;下面地图里的逐文件行数是 2026-06 的旧数,v0.2 之后新增的引擎适配器、目录/注册表、并列对比、向导等文件见 CLAUDE.md §8 的目录树)。**文件小、单一职责**是有意的。
 
 ### ① 契约层 `contracts/`(🟥 载重墙;改这里 = 影响所有下游,先问人)
 | 文件 | 行 | 职责 | 你想改 X 时来这 |
@@ -49,7 +49,7 @@
 | `pipeline/verify.py` | 346 | **唯一抓被引页面**;SSRF 防护 + 重定向逐跳校验 + HTML 消毒;`OfflineChecker/HttpHeadChecker/PageFetchChecker` |
 | `pipeline/report.py` | ~250 | 公共入口:渲染 Markdown / CSV + 再导出 `render_html`(import 路径稳定) |
 | `pipeline/report_html.py` | ~330 | HTML 报告组装(render_html + 单/多品牌排版 + 矩阵/证据 helper) |
-| `pipeline/report_assets.py` | ~135 | 报告叶子件:常量(淡橙/tier)+ 数字格式化 + 内联 SVG(无 I/O) |
+| `pipeline/report_assets.py` | ~135 | 报告叶子件:常量(配色/tier)+ 数字格式化 + 内联 SVG(无 I/O) |
 | `matching.py` | ~35 | 🟥 单一品牌匹配口径(name_pattern/find_positions/mentions_surfaces),纯 |
 | `providers/mock.py` | 177 | mock 引擎(零成本默认;fixture + 播种模板) |
 | `providers/anthropic.py` | 289 | 真 Claude 引擎(web_search)+ 成本估算/计价 |
@@ -119,7 +119,7 @@ probe → ①raw               ├─→ score(纯)→ report(渲染)
 ### 3.4 改报告样式
 - Markdown/CSV:`report.py` 的 `render_markdown`/`render_csv`;HTML 结构:`report_html.py`
   (`render_html` + `_brand_overview_html/_single_brand_overview_html/_matrix_html/_evidence_html`);
-  颜色/CSS/SVG/数字格式化:`report_assets.py`(`_HTML_CSS/_ORANGE/_bar_svg/_donut_svg/_pi/…`)。
+  颜色/CSS/SVG/数字格式化:`report_assets.py`(`_HTML_CSS/_BRAND_RAMP/_bar_svg/_donut_svg/_pi/…`)。
 - 改完跑 `python tools/regen_examples.py` + 人工核对 `examples/single_brand_report.html` diff;`test_examples` 守"文件 == 渲染输出"。
 - 🟥 外部/AI 数据必须 `html.escape`(防注入);不许引外链/脚本(`test_e2e_html_report_is_offline_single_file` 守)。
 

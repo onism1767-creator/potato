@@ -48,7 +48,7 @@ __all__ = [
 ]
 
 _DEFAULT_MAX_AGE_DAYS = 7.0
-_USER_AGENT = "aivis/0.1 (reproducible visibility measurement; user-triggered verify)"
+_USER_AGENT = "aivis/0.3 (reproducible visibility measurement; user-triggered verify)"
 _MAX_REDIRECTS = 5
 # 恶意/坏掉的 HTML(如几十 KB 的未闭合标签)能让标准库解析器平方级地慢:给解析设总时限
 _HTML_PARSE_BUDGET_S = 5.0
